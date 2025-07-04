@@ -9,6 +9,8 @@
 
 ## 这是一个小学英语试卷生成器，基于大语言模型，根据年级、难度、主题、重点考核知识生成试卷，题目类型数量均可配置。
 
+你可以在这里试用（需要自行提供openai_key）：https://v0-english-test-generator-gamma.vercel.app/
+
 This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
 Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
 
