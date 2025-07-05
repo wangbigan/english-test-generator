@@ -72,27 +72,33 @@ We have a lot of fun together!
     })
   }
 
-  // 2. 选择题（4个选项）
+  // 2. 选择题（4个选项，不包含A、B、C、D标签）
   if (config.questionTypes.multipleChoice.count > 0) {
     const questions = []
     const sampleQuestions = [
       {
         question: "What color is the sky?",
-        options: ["A. Blue", "B. Red", "C. Green", "D. Yellow"],
+        options: ["Blue", "Red", "Green", "Yellow"],
         answer: "A",
         explanation: "天空的颜色是蓝色的，所以正确答案是A. Blue。",
       },
       {
         question: "How many days are there in a week?",
-        options: ["A. Five", "B. Six", "C. Seven", "D. Eight"],
+        options: ["Five", "Six", "Seven", "Eight"],
         answer: "C",
         explanation: "一周有七天，所以正确答案是C. Seven。",
       },
       {
         question: "What do you say when you meet someone for the first time?",
-        options: ["A. Goodbye", "B. Nice to meet you", "C. See you later", "D. Good night"],
+        options: ["Goodbye", "Nice to meet you", "See you later", "Good night"],
         answer: "B",
         explanation: "初次见面时应该说'Nice to meet you'，所以正确答案是B。",
+      },
+      {
+        question: "What is the opposite of 'big'?",
+        options: ["Small", "Tall", "Fast", "Happy"],
+        answer: "A",
+        explanation: "'Big'的反义词是'Small'，所以正确答案是A。",
       },
     ]
 

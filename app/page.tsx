@@ -132,9 +132,16 @@ export default function HomePage() {
       return
     }
 
+    // 计算实际总分并更新配置
+    const actualTotalScore = calculateTotalScore()
+    const configWithCorrectScore = {
+      ...config,
+      totalScore: actualTotalScore,
+    }
+
     setIsGenerating(true)
     try {
-      const result = await generateTestPaper(config, openaiConfig)
+      const result = await generateTestPaper(configWithCorrectScore, openaiConfig)
       setGeneratedTest(result)
       setActiveTab("preview")
     } catch (error) {
@@ -142,6 +149,215 @@ export default function HomePage() {
       alert("生成试卷失败，请重试")
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  const handleExport = (type: "pdf" | "json") => {
+    if (!generatedTest) {
+      alert("请先生成试卷")
+      return
+    }
+
+    switch (type) {
+      case "pdf":
+        // 使用浏览器的打印功能生成PDF，包含答案解析
+        const printWindow = window.open("", "_blank")
+        if (printWindow) {
+          printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>${generatedTest.title}</title>
+              <style>
+                body { 
+                  font-family: Arial, sans-serif; 
+                  margin: 20px; 
+                  line-height: 1.6;
+                }
+                .header { 
+                  text-align: center; 
+                  margin-bottom: 30px; 
+                  border-bottom: 2px solid #333;
+                  padding-bottom: 20px;
+                }
+                .section { 
+                  margin-bottom: 30px; 
+                  page-break-inside: avoid;
+                }
+                .question { 
+                  margin-bottom: 20px; 
+                  padding: 10px;
+                  border-left: 3px solid #007bff;
+                  background-color: #f8f9fa;
+                }
+                .options { 
+                  margin-left: 20px; 
+                  margin-top: 10px;
+                }
+                .option-item {
+                  margin-bottom: 5px;
+                }
+                .listening-material {
+                  background-color: #e3f2fd;
+                  padding: 15px;
+                  border-radius: 5px;
+                  margin-bottom: 20px;
+                  border-left: 4px solid #2196f3;
+                }
+                .answer-section {
+                  page-break-before: always;
+                  margin-top: 40px;
+                }
+                .answer-item {
+                  margin-bottom: 20px;
+                  padding: 15px;
+                  border-left: 4px solid #4caf50;
+                  background-color: #f1f8e9;
+                }
+                .answer-header {
+                  font-weight: bold;
+                  color: #2e7d32;
+                  margin-bottom: 8px;
+                }
+                .explanation {
+                  color: #555;
+                  font-size: 14px;
+                  line-height: 1.5;
+                }
+                @media print { 
+                  body { margin: 0; }
+                  .page-break { page-break-before: always; }
+                }
+              </style>
+            </head>
+            <body>
+              <!-- 试卷题目部分 -->
+              <div class="header">
+                <h1>${generatedTest.title}</h1>
+                <p style="font-size: 18px; color: #666;">${generatedTest.subtitle}</p>
+                <div style="display: flex; justify-content: space-between; margin-top: 20px; font-size: 14px;">
+                  <span>姓名：_______________</span>
+                  <span>班级：_______________</span>
+                  <span>学号：_______________</span>
+                  <span style="font-weight: bold;">总分：${generatedTest.totalScore}分</span>
+                </div>
+                <div style="margin-top: 15px; text-align: left; background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
+                  <strong>考试说明：</strong>
+                  <p style="margin-top: 8px;">${generatedTest.instructions}</p>
+                </div>
+              </div>
+
+              ${
+                generatedTest.listeningMaterial
+                  ? `
+                <div class="listening-material">
+                  <h3 style="color: #1976d2; margin-bottom: 10px;">听力材料</h3>
+                  <div style="white-space: pre-line;">${generatedTest.listeningMaterial}</div>
+                </div>
+              `
+                  : ""
+              }
+
+              ${generatedTest.sections
+                .map(
+                  (section) => `
+                <div class="section">
+                  <h2 style="color: #333; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+                    ${section.title} 
+                    <span style="font-size: 14px; color: #666; font-weight: normal;">
+                      (${section.questions.length}题，共${section.questions.reduce((sum, q) => sum + q.points, 0)}分)
+                    </span>
+                  </h2>
+                  ${section.questions
+                    .map(
+                      (q, i) => `
+                    <div class="question">
+                      <p style="margin-bottom: 10px;">
+                        <strong>${i + 1}. ${q.question}</strong> 
+                        <span style="color: #007bff; font-size: 12px;">(${q.points}分)</span>
+                      </p>
+                      ${
+                        q.options
+                          ? `
+                        <div class="options">
+                          ${q.options
+                            .map(
+                              (opt, j) => `
+                            <div class="option-item">
+                              <strong>${String.fromCharCode(65 + j)}.</strong> ${opt}
+                            </div>
+                          `,
+                            )
+                            .join("")}
+                        </div>
+                      `
+                          : `
+                        <div style="margin-top: 10px;">
+                          <span style="color: #666; font-size: 14px;">答案：</span>
+                          <span style="border-bottom: 1px solid #333; display: inline-block; width: 200px; height: 20px;"></span>
+                        </div>
+                      `
+                      }
+                    </div>
+                  `,
+                    )
+                    .join("")}
+                </div>
+              `,
+                )
+                .join("")}
+
+              <!-- 答案解析部分 -->
+              <div class="answer-section page-break">
+                <div class="header">
+                  <h1>答案与解析</h1>
+                  <p style="font-size: 18px; color: #666;">${generatedTest.title}</p>
+                </div>
+                
+                ${generatedTest.answerKey
+                  .map(
+                    (item, index) => `
+                  <div class="answer-item">
+                    <div class="answer-header">
+                      第${index + 1}题 - 答案：${item.answer}
+                    </div>
+                    <div class="explanation">${item.explanation}</div>
+                  </div>
+                `,
+                  )
+                  .join("")}
+              </div>
+            </body>
+            </html>
+          `)
+          printWindow.document.close()
+          printWindow.print()
+        }
+        break
+      case "json":
+        // 下载完整的JSON文件，包含所有数据
+        const completeData = {
+          ...generatedTest,
+          exportTime: new Date().toISOString(),
+          config: {
+            grade: config.grade,
+            difficulty: config.difficulty,
+            theme: config.theme,
+            knowledgePoints: config.knowledgePoints,
+            questionTypes: config.questionTypes,
+          },
+        }
+        const dataStr = JSON.stringify(completeData, null, 2)
+        const dataBlob = new Blob([dataStr], { type: "application/json" })
+        const url = URL.createObjectURL(dataBlob)
+        const link = document.createElement("a")
+        link.href = url
+        link.download = `${generatedTest.title.replace(/[^\w\s]/gi, "")}_完整数据.json`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+        break
     }
   }
 
@@ -353,25 +569,48 @@ export default function HomePage() {
                 <CardDescription>选择导出格式和选项</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Button variant="outline" className="h-20 flex flex-col gap-2 bg-transparent">
-                    <FileText className="w-6 h-6" />
-                    导出PDF
-                  </Button>
-                  <Button variant="outline" className="h-20 flex flex-col gap-2 bg-transparent">
-                    <FileText className="w-6 h-6" />
-                    导出Word
-                  </Button>
-                  <Button variant="outline" className="h-20 flex flex-col gap-2 bg-transparent">
-                    <Download className="w-6 h-6" />
-                    打印版本
-                  </Button>
-                </div>
-                <div className="text-sm text-gray-500">
-                  <p>• PDF格式：适合直接打印和分发</p>
-                  <p>• Word格式：可进一步编辑和修改</p>
-                  <p>• 打印版本：优化排版，适合A4纸打印</p>
-                </div>
+                {!generatedTest ? (
+                  <div className="text-center py-8">
+                    <FileText className="w-16 h-16 text-gray-400 mb-4 mx-auto" />
+                    <p className="text-gray-500">请先生成试卷后再导出</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Button
+                        variant="outline"
+                        className="h-24 flex flex-col gap-2 bg-transparent"
+                        onClick={() => handleExport("pdf")}
+                      >
+                        <Download className="w-8 h-8" />
+                        <div className="text-center">
+                          <div className="font-medium">下载PDF</div>
+                          <div className="text-xs text-gray-500">包含题目和答案解析</div>
+                        </div>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-24 flex flex-col gap-2 bg-transparent"
+                        onClick={() => handleExport("json")}
+                      >
+                        <FileText className="w-8 h-8" />
+                        <div className="text-center">
+                          <div className="font-medium">导出数据</div>
+                          <div className="text-xs text-gray-500">包含题目和答案解析的试卷JSON数据</div>
+                        </div>
+                      </Button>
+                    </div>
+                    <div className="text-sm text-gray-500 space-y-2">
+                      <p>
+                        <strong>下载PDF：</strong>生成包含试卷题目和答案解析的完整PDF文件，适合打印和分发
+                      </p>
+                      <p>
+                        <strong>导出数据：</strong>
+                        下载包含试卷配置、题目、答案和解析的完整JSON数据文件，可用于备份或二次开发
+                      </p>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

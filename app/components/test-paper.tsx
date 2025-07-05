@@ -92,14 +92,22 @@ export function TestPaper({ test }: TestPaperProps) {
                           {/* 选择题选项 */}
                           {question.options && (
                             <div className="mt-3 space-y-2">
-                              {question.options.map((option, optionIndex) => (
-                                <div key={optionIndex} className="flex items-center gap-2">
-                                  <span className="w-6 h-6 border border-gray-300 rounded-full flex items-center justify-center text-sm">
-                                    {String.fromCharCode(65 + optionIndex)}
-                                  </span>
-                                  <span>{option}</span>
-                                </div>
-                              ))}
+                              {question.options.map((option, optionIndex) => {
+                                // 清理选项内容，移除可能的重复标签
+                                const cleanOption = option
+                                  .replace(/^[A-D]\.?\s*/, "") // 移除开头的 A. B. C. D. 标签
+                                  .replace(/^[A-D]\s+/, "") // 移除开头的 A B C D 标签（无点号）
+                                  .trim()
+
+                                return (
+                                  <div key={optionIndex} className="flex items-center gap-2">
+                                    <span className="w-6 h-6 border border-gray-300 rounded-full flex items-center justify-center text-sm">
+                                      {String.fromCharCode(65 + optionIndex)}
+                                    </span>
+                                    <span>{cleanOption}</span>
+                                  </div>
+                                )
+                              })}
                             </div>
                           )}
 

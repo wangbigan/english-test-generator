@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,16 @@ export function OpenAIConfigDialog({ open, onOpenChange, config, onConfigSave }:
   })
   const [showApiKey, setShowApiKey] = useState(false)
   const [isValidating, setIsValidating] = useState(false)
+
+  useEffect(() => {
+    if (config) {
+      setFormData({
+        apiKey: config.apiKey || "",
+        baseUrl: config.baseUrl || "https://api.openai.com/v1",
+        model: config.model || "gpt-4o",
+      })
+    }
+  }, [config])
 
   const handleSave = async () => {
     if (!formData.apiKey.trim()) {

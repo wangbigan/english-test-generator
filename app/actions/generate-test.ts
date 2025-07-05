@@ -58,14 +58,14 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
 
       题型配比（按以下顺序出题）:
       1. 听力题: ${config.questionTypes.listening.count}道，每题${config.questionTypes.listening.score}分
-      2. 选择题: ${config.questionTypes.multipleChoice.count}道，每题${config.questionTypes.multipleChoice.score}分（每题必须有4个选项A、B、C、D）
+      2. 选择题: ${config.questionTypes.multipleChoice.count}道，每题${config.questionTypes.multipleChoice.score}分（每题必须有4个选项）
       3. 填空题: ${config.questionTypes.fillInBlank.count}道，每题${config.questionTypes.fillInBlank.score}分
       4. 阅读理解: ${config.questionTypes.reading.count}道，每题${config.questionTypes.reading.score}分
       5. 写作题: ${config.questionTypes.writing.count}道，每题${config.questionTypes.writing.score}分
 
       特殊要求：
       1. 听力题需要生成听力材料(listeningMaterial)，包含完整的听力文本
-      2. 选择题必须有4个选项（A、B、C、D），选项内容要合理且有一定干扰性
+      2. 选择题必须有4个选项，选项内容不要包含A、B、C、D标签，只写纯内容
       3. 每道题都需要标准答案(answer)和详细解析(explanation)
       4. 题目顺序：听力题在最前面，写作题在最后面
       5. 生成完整的答案解析页面(answerKey)
@@ -76,7 +76,7 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
       - 试卷分为多个section，按顺序：听力题、选择题、填空题、阅读理解、写作题
       - 每个section包含题型(type)，标题(title)，题目列表(questions)
       - 每道题包含题目内容(question)，分值(points)，id，答案(answer)，解析(explanation)
-      - 选择题必须包含4个选项(options)，格式为["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"]
+      - 选择题必须包含4个选项(options)，格式为["选项1内容", "选项2内容", "选项3内容", "选项4内容"]，不要包含A、B、C、D标签
       - 答案解析页面(answerKey)：包含所有题目的答案和解析
 
       JSON 示例:
@@ -108,7 +108,7 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
               {
                 "id": 2,
                 "question": "What is your name?",
-                "options": ["A. My name is Tom", "B. I am a student", "C. Nice to meet you", "D. How are you"],
+                "options": ["My name is Tom", "I am a student", "Nice to meet you", "How are you"],
                 "answer": "A",
                 "explanation": "询问姓名的标准回答是'My name is...'，所以选择A。",
                 "points": 5
