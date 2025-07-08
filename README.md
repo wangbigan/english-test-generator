@@ -309,25 +309,10 @@ DEBUG=* npm run dev
 
 ## 🤝 贡献指南
 
-### 提交代码
-1. Fork项目仓库
-2. 创建功能分支: `git checkout -b feature/new-feature`
-3. 提交更改: `git commit -am 'Add new feature'`
-4. 推送分支: `git push origin feature/new-feature`
-5. 创建Pull Request
-
 ### 报告问题
 - 使用GitHub Issues报告bug
 - 提供详细的复现步骤
 - 包含错误日志和截图
-
-## 🙏 致谢
-
-- [Next.js](https://nextjs.org/) - React全栈框架
-- [shadcn/ui](https://ui.shadcn.com/) - 现代UI组件库
-- [mammoth.js](https://github.com/mwilliamson/mammoth.js) - Word文档解析
-- [JSZip](https://stuk.github.io/jszip/) - ZIP文件处理
-- [AI SDK](https://sdk.vercel.ai/) - AI集成工具包
 
 ## 📞 支持
 
@@ -337,6 +322,14 @@ DEBUG=* npm run dev
 ---
 
 **小学英语试卷生成器** - 让AI助力教育，让教学更高效！ 🎓✨
+
+## 🙏 致谢
+
+- [Next.js](https://nextjs.org/) - React全栈框架
+- [shadcn/ui](https://ui.shadcn.com/) - 现代UI组件库
+- [mammoth.js](https://github.com/mwilliamson/mammoth.js) - Word文档解析
+- [JSZip](https://stuk.github.io/jszip/) - ZIP文件处理
+- [AI SDK](https://sdk.vercel.ai/) - AI集成工具包
 
 ## 📄 许可证
 
