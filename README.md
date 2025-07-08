@@ -28,8 +28,9 @@
 ## 🚀 快速开始
 
 ### 快速试用
-国外访问：[https://v0-english-test-generator-gamma.vercel.app](https://v0-english-test-generator-gamma.vercel.app/)
-国内访问：[https://englishtestgenerator.netlify.app](https://englishtestgenerator.netlify.app/)
+- **国内访问**：[https://englishtestgenerator.netlify.app](https://englishtestgenerator.netlify.app/)
+- **国外访问**：[https://v0-english-test-generator-gamma.vercel.app](https://v0-english-test-generator-gamma.vercel.app/)
+
 
 ### 环境要求
 - Node.js 18.0+
