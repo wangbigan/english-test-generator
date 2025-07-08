@@ -10,10 +10,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { BookOpen, Settings, FileText, Download, Loader2, Settings2 } from "lucide-react"
+import { BookOpen, Settings, FileText, Download, Loader2, Settings2, Upload } from "lucide-react"
 import { TestPaper } from "./components/test-paper"
 import { generateTestPaper } from "./actions/generate-test"
 import { OpenAIConfigDialog } from "./components/openai-config-dialog"
+import { FileUpload } from "./components/file-upload"
 
 interface TestConfig {
   grade: string
@@ -150,6 +151,13 @@ export default function HomePage() {
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  const handleKnowledgePointsExtracted = (points: string) => {
+    setConfig((prev) => ({
+      ...prev,
+      knowledgePoints: points,
+    }))
   }
 
   const handleExport = (type: "pdf" | "json") => {
@@ -463,6 +471,18 @@ export default function HomePage() {
                       onChange={(e) => handleConfigChange("knowledgePoints", e.target.value)}
                       rows={3}
                     />
+                    <div className="mt-2">
+                      <Label className="text-sm text-gray-600 flex items-center gap-2">
+                        <Upload className="w-4 h-4" />
+                        或上传文档自动提取知识点
+                      </Label>
+                      <div className="mt-2">
+                        <FileUpload
+                          onKnowledgePointsExtracted={handleKnowledgePointsExtracted}
+                          openaiConfig={openaiConfig}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
