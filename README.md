@@ -321,10 +321,6 @@ DEBUG=* npm run dev
 - 提供详细的复现步骤
 - 包含错误日志和截图
 
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
 ## 🙏 致谢
 
 - [Next.js](https://nextjs.org/) - React全栈框架
@@ -336,9 +332,12 @@ DEBUG=* npm run dev
 ## 📞 支持
 
 如有问题或建议，请通过以下方式联系：
-- GitHub Issues: [项目Issues页面]
-- 邮箱: [your-email@example.com]
+- GitHub Issues: [项目Issues页面](https://github.com/wangbigan/english-test-generator/issues)
 
 ---
 
 **小学英语试卷生成器** - 让AI助力教育，让教学更高效！ 🎓✨
+
+## 📄 许可证
+
+本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
