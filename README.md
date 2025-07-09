@@ -27,6 +27,10 @@
 
 ## 🚀 快速开始
 
+### 快速试用
+- 国内访问：[https://englishtestgenerator.netlify.app/](https://englishtestgenerator.netlify.app/)
+- 国外访问：[https://v0-english-test-generator-gamma.vercel.app/](https://v0-english-test-generator-gamma.vercel.app/)
+
 ### 环境要求
 - Node.js 18.0+
 - npm 或 yarn 包管理器
@@ -34,24 +38,24 @@
 ### 安装步骤
 
 1. **克隆项目**
-\`\`\`bash
+```bash
 git clone <repository-url>
 cd english-test-generator
-\`\`\`
+```
 
 2. **安装依赖**
-\`\`\`bash
+```bash
 npm install
 # 或
 yarn install
-\`\`\`
+```
 
 3. **启动开发服务器**
-\`\`\`bash
+```bash
 npm run dev
 # 或
 yarn dev
-\`\`\`
+```
 
 4. **访问应用**
 打开浏览器访问 `http://localhost:3000`
@@ -64,7 +68,7 @@ yarn dev
 
 1. 点击页面顶部的"OpenAI 配置"按钮
 2. 填入以下信息：
-   - **API Key**: 从[OpenAI官网](https://platform.openai.com/api-keys)获取
+   - **API Key**: 从[OpenAI官网](https://platform.openai.com/api-keys)或[deepseek官网](https://api-docs.deepseek.com/zh-cn/)获取
    - **Base URL**: 默认 `https://api.openai.com/v1`
    - **模型**: 推荐 `gpt-4o` 或 `deepseek-chat`
 
@@ -136,7 +140,7 @@ yarn dev
   - JSZip + xml2js (PowerPoint)
 
 ### 核心依赖
-\`\`\`json
+```json
 {
   "ai": "^4.0.17",
   "@ai-sdk/openai": "^1.0.2",
@@ -145,11 +149,11 @@ yarn dev
   "jszip": "^3.10.1",
   "xml2js": "^0.6.2"
 }
-\`\`\`
+```
 
 ## 📁 项目结构
 
-\`\`\`
+```
 english-test-generator/
 ├── app/
 │   ├── actions/                 # 服务器操作
@@ -169,56 +173,44 @@ english-test-generator/
 ├── lib/                         # 工具函数
 ├── public/                      # 静态资源
 └── README.md                    # 项目文档
-\`\`\`
+```
 
 ## 🔧 开发指南
 
 ### 本地开发
 
 1. **启动开发服务器**
-\`\`\`bash
+```bash
 npm run dev
-\`\`\`
+```
 
 2. **代码格式化**
-\`\`\`bash
+```bash
 npm run lint
-\`\`\`
+```
 
 3. **构建生产版本**
-\`\`\`bash
+```bash
 npm run build
 npm start
-\`\`\`
-
-### 环境变量配置
-
-创建 `.env.local` 文件（可选）：
-\`\`\`env
-# OpenAI配置（也可在界面中配置）
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_BASE_URL=https://api.openai.com/v1
-
-# DeepSeek配置
-DEEPSEEK_API_KEY=your_deepseek_api_key
-\`\`\`
+```
 
 ### 自定义配置
 
 #### 添加新的AI模型
 在 `app/components/openai-config-dialog.tsx` 中添加：
-\`\`\`tsx
+```tsx
 <SelectItem value="new-model">新模型名称</SelectItem>
-\`\`\`
+```
 
 #### 修改题型配置
 在 `app/page.tsx` 中调整 `questionTypes` 配置：
-\`\`\`tsx
+```tsx
 questionTypes: {
   // 添加新题型或修改现有配置
   newType: { count: 5, score: 4 }
 }
-\`\`\`
+```
 
 ## 📊 文档解析详解
 
@@ -308,20 +300,13 @@ questionTypes: {
 ### 调试模式
 
 启用详细日志：
-\`\`\`bash
+```bash
 DEBUG=* npm run dev
-\`\`\`
+```
 
 查看浏览器控制台获取详细错误信息。
 
 ## 🤝 贡献指南
-
-### 提交代码
-1. Fork项目仓库
-2. 创建功能分支: `git checkout -b feature/new-feature`
-3. 提交更改: `git commit -am 'Add new feature'`
-4. 推送分支: `git push origin feature/new-feature`
-5. 创建Pull Request
 
 ### 报告问题
 - 使用GitHub Issues报告bug
@@ -343,8 +328,7 @@ DEBUG=* npm run dev
 ## 📞 支持
 
 如有问题或建议，请通过以下方式联系：
-- GitHub Issues: [项目Issues页面]
-- 邮箱: [your-email@example.com]
+- GitHub Issues: [项目Issues页面](https://github.com/wangbigan/english-test-generator/issues)
 
 ---
 
