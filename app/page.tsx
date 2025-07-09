@@ -10,10 +10,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { BookOpen, Settings, FileText, Download, Loader2, Settings2, Upload } from "lucide-react"
+import { BookOpen, Settings, FileText, Download, Loader2, Settings2, Upload, Wand2 } from "lucide-react"
 import { TestPaper } from "./components/test-paper"
 import { generateTestPaper } from "./actions/generate-test"
 import { OpenAIConfigDialog } from "./components/openai-config-dialog"
+import { PromptConfigDialog } from "./components/prompt-config-dialog"
 import { FileUpload } from "./components/file-upload"
 
 interface TestConfig {
@@ -56,6 +57,12 @@ interface GeneratedTest {
   }>
 }
 
+interface PromptConfig {
+  selectedTemplate: string
+  customTemplate: string
+  variables: Record<string, string>
+}
+
 export default function HomePage() {
   const [config, setConfig] = useState<TestConfig>({
     grade: "1", // 默认1年级
@@ -73,11 +80,13 @@ export default function HomePage() {
   })
 
   const [showConfigDialog, setShowConfigDialog] = useState(false)
+  const [showPromptDialog, setShowPromptDialog] = useState(false)
   const [openaiConfig, setOpenaiConfig] = useState<{
     apiKey: string
     baseUrl: string
     model: string
   } | null>(null)
+  const [promptConfig, setPromptConfig] = useState<PromptConfig | null>(null)
 
   // 检查本地存储的配置
   useEffect(() => {
@@ -87,6 +96,15 @@ export default function HomePage() {
         setOpenaiConfig(JSON.parse(savedConfig))
       } catch (error) {
         console.error("Failed to parse saved config:", error)
+      }
+    }
+
+    const savedPromptConfig = localStorage.getItem("prompt-config")
+    if (savedPromptConfig) {
+      try {
+        setPromptConfig(JSON.parse(savedPromptConfig))
+      } catch (error) {
+        console.error("Failed to parse saved prompt config:", error)
       }
     }
   }, [])
@@ -142,7 +160,7 @@ export default function HomePage() {
 
     setIsGenerating(true)
     try {
-      const result = await generateTestPaper(configWithCorrectScore, openaiConfig)
+      const result = await generateTestPaper(configWithCorrectScore, openaiConfig, promptConfig || undefined)
       setGeneratedTest(result)
       setActiveTab("preview")
     } catch (error) {
@@ -375,20 +393,36 @@ export default function HomePage() {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">小学英语试卷生成器</h1>
           <p className="text-lg text-gray-600 mb-4">基于AI大模型，智能生成个性化英语试卷</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowConfigDialog(true)}
-            className="flex items-center gap-2"
-          >
-            <Settings2 className="w-4 h-4" />
-            OpenAI 配置
-            {openaiConfig?.apiKey && (
-              <Badge variant="secondary" className="ml-1">
-                已配置
-              </Badge>
-            )}
-          </Button>
+          <div className="flex justify-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowConfigDialog(true)}
+              className="flex items-center gap-2"
+            >
+              <Settings2 className="w-4 h-4" />
+              OpenAI 配置
+              {openaiConfig?.apiKey && (
+                <Badge variant="secondary" className="ml-1">
+                  已配置
+                </Badge>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPromptDialog(true)}
+              className="flex items-center gap-2"
+            >
+              <Wand2 className="w-4 h-4" />
+              Prompt 配置
+              {promptConfig && (
+                <Badge variant="secondary" className="ml-1">
+                  {promptConfig.selectedTemplate}
+                </Badge>
+              )}
+            </Button>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -636,6 +670,7 @@ export default function HomePage() {
           </TabsContent>
         </Tabs>
       </div>
+
       <OpenAIConfigDialog
         open={showConfigDialog}
         onOpenChange={setShowConfigDialog}
@@ -644,6 +679,17 @@ export default function HomePage() {
           setOpenaiConfig(newConfig)
           localStorage.setItem("openai-config", JSON.stringify(newConfig))
           setShowConfigDialog(false)
+        }}
+      />
+
+      <PromptConfigDialog
+        open={showPromptDialog}
+        onOpenChange={setShowPromptDialog}
+        config={promptConfig}
+        onConfigSave={(newConfig) => {
+          setPromptConfig(newConfig)
+          localStorage.setItem("prompt-config", JSON.stringify(newConfig))
+          setShowPromptDialog(false)
         }}
       />
     </div>
