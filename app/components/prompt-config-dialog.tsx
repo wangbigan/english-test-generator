@@ -48,7 +48,7 @@ const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json
     "sections": [
       {
         "type": "listening",
-        "title": "一、听力题（选择题形式）",
+        "title": "一、听力题",
         "listeningMaterial": "Hello, my name is Tom. I am seven years old. I like apples and bananas. My favorite color is blue. I have a pet dog named Max.",
         "questions": [
           {
@@ -90,7 +90,7 @@ const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json
       },
       {
         "type": "reading",
-        "title": "三、阅读理解(选择题形式)",
+        "title": "三、阅读理解",
         "readingMaterial": "I am a student. I like apples. My favorite color is blue. I have a pet dog named Max.",
         "questions": [
           {
