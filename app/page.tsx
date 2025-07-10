@@ -199,7 +199,7 @@ export default function HomePage() {
     }))
   }
 
-  const handleExport = (type: "pdf" | "json") => {
+  const handleExport = (type: "pdf" | "json" | "word") => {
     if (!generatedTest) {
       alert("请先生成试卷")
       return
@@ -395,6 +395,112 @@ export default function HomePage() {
           printWindow.document.close()
           printWindow.print()
         }
+        break
+      case "word":
+        // 导出Word文档（简单版：用HTML转Blob，后续可升级为真正的docx）
+        const wordHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>${generatedTest.title}</title>
+          </head>
+          <body>
+            <div style="background: #fffbe6; border-left: 4px solid #ffe58f; color: #ad8b00; padding: 10px 16px; border-radius: 4px; margin-bottom: 18px; font-size: 15px;">
+              本试卷内容由AI大模型自动生成，仅供参考。
+            </div>
+            <h1 style="text-align:center;">${generatedTest.title}</h1>
+            <p style="text-align:center; font-size: 18px; color: #666;">${generatedTest.subtitle}</p>
+            <div style="display: flex; justify-content: space-between; margin-top: 20px; font-size: 14px;">
+              <span>姓名：_______________</span>
+              <span>班级：_______________</span>
+              <span>学号：_______________</span>
+              <span style="font-weight: bold;">总分：${generatedTest.totalScore}分</span>
+            </div>
+            <div style="margin-top: 15px; text-align: left; background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
+              <strong>考试说明：</strong>
+              <p style="margin-top: 8px;">${generatedTest.instructions}</p>
+            </div>
+            ${
+              generatedTest.listeningMaterial
+                ? `<div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #2196f3;">
+                    <h3 style="color: #1976d2; margin-bottom: 10px;">听力材料</h3>
+                    <div style="white-space: pre-line;">${generatedTest.listeningMaterial}</div>
+                  </div>`
+                : ""
+            }
+            ${generatedTest.sections
+              .map(
+                (section) => `
+                  <div style="margin-bottom: 30px;">
+                    <h2 style="color: #333; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
+                      ${section.title}
+                      <span style="font-size: 14px; color: #666; font-weight: normal;">
+                        (${Array.isArray(section.questions) ? section.questions.length : 0}题，共${Array.isArray(section.questions) ? section.questions.reduce((sum, q) => sum + q.points, 0) : 0}分)
+                      </span>
+                    </h2>
+                    ${Array.isArray(section.questions)
+                      ? section.questions
+                          .map(
+                            (q, i) => `
+                      <div style="margin-bottom: 20px; padding: 10px; border-left: 3px solid #007bff; background-color: #f8f9fa;">
+                        <p style="margin-bottom: 10px;"><strong>${i + 1}. ${q.question}</strong> <span style="color: #007bff; font-size: 12px;">(${q.points}分)</span></p>
+                        ${
+                          q.options
+                            ? `<div style="margin-left: 20px; margin-top: 10px;">
+                                ${q.options
+                                  .map(
+                                    (opt, j) => `<div style="margin-bottom: 5px;"><strong>${String.fromCharCode(65 + j)}.</strong> ${opt}</div>`
+                                  )
+                                  .join("")}
+                              </div>`
+                            : `<div style="margin-top: 10px;"><span style="color: #666; font-size: 14px;">答案：</span><span style="border-bottom: 1px solid #333; display: inline-block; width: 200px; height: 20px;"></span></div>`
+                        }
+                      </div>
+                    `
+                          )
+                          .join("")
+                      : ""
+                    }
+                  </div>
+                `
+              )
+              .join("")}
+            <div style="page-break-before: always; margin-top: 40px;"></div>
+            <div style="background: #fffbe6; border-left: 4px solid #ffe58f; color: #ad8b00; padding: 10px 16px; border-radius: 4px; margin-bottom: 18px; font-size: 15px;">
+              本试卷内容由AI大模型自动生成，仅供参考。
+            </div>
+            <h1>答案与解析</h1>
+            <p style="font-size: 18px; color: #666;">${generatedTest.title}</p>
+            ${(() => {
+              let qNum = 1;
+              let html = "";
+              generatedTest.sections.forEach(section => {
+                if (Array.isArray(section.questions)) {
+                  section.questions.forEach(q => {
+                    html += `
+                      <div style="margin-bottom: 20px; padding: 15px; border-left: 4px solid #4caf50; background-color: #f1f8e9;">
+                        <div style="font-weight: bold; color: #2e7d32; margin-bottom: 8px;">第${qNum++}题 - 答案：${q.answer ?? "-"}</div>
+                        <div style="color: #555; font-size: 14px; line-height: 1.5;">${q.explanation ?? "-"}</div>
+                      </div>
+                    `;
+                  });
+                }
+              });
+              return html;
+            })()}
+          </body>
+          </html>
+        `;
+        const wordBlob = new Blob([wordHtml], { type: "application/msword" });
+        const wordUrl = URL.createObjectURL(wordBlob);
+        const wordLink = document.createElement("a");
+        wordLink.href = wordUrl;
+        wordLink.download = `${generatedTest.title.replace(/[^ -\u4e00-\u9fa5]/g, "")}_试卷.doc`;
+        document.body.appendChild(wordLink);
+        wordLink.click();
+        document.body.removeChild(wordLink);
+        URL.revokeObjectURL(wordUrl);
         break
       case "json":
         // 下载完整的JSON文件，包含所有数据
@@ -666,10 +772,10 @@ export default function HomePage() {
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex flex-wrap gap-4 mt-4 w-full">
                       <Button
                         variant="outline"
-                        className="h-24 flex flex-col gap-2 bg-transparent"
+                        className="h-24 flex flex-col gap-2 bg-transparent flex-1"
                         onClick={() => handleExport("pdf")}
                       >
                         <Download className="w-8 h-8" />
@@ -680,7 +786,18 @@ export default function HomePage() {
                       </Button>
                       <Button
                         variant="outline"
-                        className="h-24 flex flex-col gap-2 bg-transparent"
+                        className="h-24 flex flex-col gap-2 bg-transparent flex-1"
+                        onClick={() => handleExport("word")}
+                      >
+                        <FileText className="w-8 h-8" />
+                        <div className="text-center">
+                          <div className="font-medium">下载Word</div>
+                          <div className="text-xs text-gray-500">包含题目和答案解析</div>
+                        </div>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-24 flex flex-col gap-2 bg-transparent flex-1"
                         onClick={() => handleExport("json")}
                       >
                         <FileText className="w-8 h-8" />
@@ -693,6 +810,9 @@ export default function HomePage() {
                     <div className="text-sm text-gray-500 space-y-2">
                       <p>
                         <strong>下载PDF：</strong>生成包含试卷题目和答案解析的完整PDF文件，适合打印和分发
+                      </p>
+                      <p>
+                        <strong>下载Word：</strong>生成包含试卷题目和答案解析的Word文档，适合编辑和二次排版
                       </p>
                       <p>
                         <strong>导出数据：</strong>
