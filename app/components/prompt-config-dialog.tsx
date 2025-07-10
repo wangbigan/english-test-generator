@@ -422,7 +422,7 @@ export function PromptConfigDialog({ open, onOpenChange, config, onConfigSave }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-hidden">
+      <DialogContent className="sm:max-w-[800px] max-h-[80vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wand2 className="w-5 h-5" />
@@ -475,7 +475,7 @@ export function PromptConfigDialog({ open, onOpenChange, config, onConfigSave }:
             </div>
           </TabsContent>
 
-          <TabsContent value="editor" className="space-y-4">
+          <TabsContent value="editor" className="space-y-4 overflow-y-auto pb-8">
             <div className="space-y-2">
               <Label htmlFor="template-editor">Prompt 模板内容</Label>
               <Textarea
@@ -488,24 +488,17 @@ export function PromptConfigDialog({ open, onOpenChange, config, onConfigSave }:
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <Info className="w-4 h-4" />
                 <span>
-                  使用 {`{{变量名}}`} 格式插入动态变量，如 {`{{grade}}`}、{`{{difficulty}}`} 等
+                  模板中的变量会在生成试卷时自动替换为实际值。
                 </span>
               </div>
             </div>
             {/* JSON 示例只读高亮显示 */}
             <div className="mt-4">
               <div className="font-semibold mb-1 text-gray-800">JSON格式示例（只读）</div>
-              <pre className="bg-gray-50 p-3 rounded border text-xs overflow-x-auto text-gray-800 select-none" style={{userSelect:'none', maxHeight: '180px', overflowY: 'auto'}}>
+              <pre className="bg-gray-50 p-3 rounded border-[1.5px] border-solid border-gray-300 z-10 shadow-sm text-xs overflow-x-auto text-gray-800 select-none" style={{userSelect:'none', maxHeight: '180px', overflowY: 'auto'}}>
                 {getJsonExampleFromTemplate(`${customTemplate}\n\n${JSON_EXAMPLE}`) || '无JSON示例'}
               </pre>
             </div>
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                <strong>提示：</strong>模板中的变量会在生成试卷时自动替换为实际值。
-                请严格要求大模型按照json示例输出。
-              </AlertDescription>
-            </Alert>
           </TabsContent>
 
           <TabsContent value="variables" className="space-y-4 overflow-y-auto max-h-[400px]">
