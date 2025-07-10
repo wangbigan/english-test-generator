@@ -32,8 +32,8 @@ interface OpenAIConfigDialogProps {
 export function OpenAIConfigDialog({ open, onOpenChange, config, onConfigSave }: OpenAIConfigDialogProps) {
   const [formData, setFormData] = useState<OpenAIConfig>({
     apiKey: config?.apiKey || "",
-    baseUrl: config?.baseUrl || "https://api.openai.com/v1",
-    model: config?.model || "gpt-4o",
+    baseUrl: config?.baseUrl || "https://api.deepseek.com",
+    model: config?.model || "deepseek-chat",
   })
   const [showApiKey, setShowApiKey] = useState(false)
   const [isValidating, setIsValidating] = useState(false)
@@ -42,8 +42,8 @@ export function OpenAIConfigDialog({ open, onOpenChange, config, onConfigSave }:
     if (config) {
       setFormData({
         apiKey: config.apiKey || "",
-        baseUrl: config.baseUrl || "https://api.openai.com/v1",
-        model: config.model || "gpt-4o",
+        baseUrl: config.baseUrl || "https://api.deepseek.com",
+        model: config.model || "deepseek-chat",
       })
     }
   }, [config])
@@ -85,8 +85,8 @@ export function OpenAIConfigDialog({ open, onOpenChange, config, onConfigSave }:
   const handleReset = () => {
     setFormData({
       apiKey: "",
-      baseUrl: "https://api.openai.com/v1",
-      model: "gpt-4o",
+      baseUrl: "https://api.deepseek.com",
+      model: "deepseek-chat",
     })
   }
 
@@ -160,16 +160,16 @@ export function OpenAIConfigDialog({ open, onOpenChange, config, onConfigSave }:
                 <SelectValue placeholder="选择模型" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="gpt-4o">GPT-4o (推荐)</SelectItem>
+                <SelectItem value="deepseek-chat">DeepSeek Chat (推荐)</SelectItem>
+                <SelectItem value="deepseek-reasoner">DeepSeek Reasoner</SelectItem>
+                <SelectItem value="gpt-4o">GPT-4o</SelectItem>
                 <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
                 <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
                 <SelectItem value="gpt-4">GPT-4</SelectItem>
                 <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                <SelectItem value="deepseek-chat">DeepSeek Chat</SelectItem>
-                <SelectItem value="deepseek-reasoner">DeepSeek Reasoner</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-gray-500">推荐使用GPT-4o或DeepSeek Chat获得最佳试卷生成效果</p>
+            <p className="text-xs text-gray-500">推荐使用DeepSeek Chat获得最佳试卷生成效果</p>
           </div>
         </div>
 
