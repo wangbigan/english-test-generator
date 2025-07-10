@@ -12,10 +12,12 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BookOpen, Settings, FileText, Download, Loader2, Settings2, Upload, Wand2 } from "lucide-react"
 import { TestPaper } from "./components/test-paper"
-import { generateTestPaper } from "./actions/generate-test"
+import { generateTestPaper, buildPrompt } from "./actions/generate-test"
 import { OpenAIConfigDialog } from "./components/openai-config-dialog"
 import { PromptConfigDialog } from "./components/prompt-config-dialog"
 import { FileUpload } from "./components/file-upload"
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
+import { DEFAULT_TEMPLATES } from "./components/prompt-config-dialog"
 
 interface TestConfig {
   grade: string
@@ -86,7 +88,15 @@ export default function HomePage() {
     baseUrl: string
     model: string
   } | null>(null)
-  const [promptConfig, setPromptConfig] = useState<PromptConfig | null>(null)
+  const [promptConfig, setPromptConfig] = useState<PromptConfig | null>(() => {
+    const standardTemplate = DEFAULT_TEMPLATES.find(t => t.id === "standard")?.template || ""
+    const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json\n  {\n    \"title\": \"一年级英语中等测试\",\n    \"subtitle\": \"Unit 1-3\",\n    \"instructions\": \"请认真阅读题目，仔细作答。听力题请仔细听录音。\",\n    \"totalScore\": 100,\n    \"listeningMaterial\": \"Hello, my name is Tom. I am seven years old. I like apples and bananas. My favorite color is blue. I have a pet dog named Max.\",\n    \"sections\": [\n      {\n        \"type\": \"listening\",\n        \"title\": \"一、听力题\",\n        \"questions\": [\n          {\n            \"id\": 1,\n            \"question\": \"What is the boy's name?\",\n            \"answer\": \"Tom\",\n            \"explanation\": \"从听力材料中可以听到'Hello, my name is Tom'，所以答案是Tom。\",\n            \"points\": 5   \n          }\n        ]\n      },\n      {\n        \"type\": \"multipleChoice\",\n        \"title\": \"二、选择题\",\n        \"questions\": [\n          {\n            \"id\": 2,\n            \"question\": \"What is your name?\",\n            \"options\": [\"My name is Tom\", \"I am a student\", \"Nice to meet you\", \"How are you\"],\n            \"answer\": \"A\",\n            \"explanation\": \"询问姓名的标准回答是'My name is...'，所以选择A。\",\n            \"points\": 5\n          }\n        ]\n      }\n    ],\n    \"answerKey\": [\n      {\n        \"id\": 1,\n        \"answer\": \"Tom\",\n        \"explanation\": \"从听力材料中可以听到'Hello, my name is Tom'，所以答案是Tom。\"\n      }\n    ]\n  }\n\`\`\`\n`;
+    return {
+      selectedTemplate: "standard",
+      customTemplate: `${standardTemplate}\n\n${JSON_EXAMPLE}`,
+      variables: {},
+    }
+  })
 
   // 检查本地存储的配置
   useEffect(() => {
@@ -112,6 +122,10 @@ export default function HomePage() {
   const [generatedTest, setGeneratedTest] = useState<GeneratedTest | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [activeTab, setActiveTab] = useState("config")
+  const [promptText, setPromptText] = useState<string>("")
+  const [rawResponseText, setRawResponseText] = useState<string>("")
+  const [promptOpen, setPromptOpen] = useState<boolean>(false)
+  const [showPromptPanel, setShowPromptPanel] = useState(false)
 
   const handleConfigChange = (key: string, value: any) => {
     setConfig((prev) => ({ ...prev, [key]: value }))
@@ -158,10 +172,17 @@ export default function HomePage() {
       totalScore: actualTotalScore,
     }
 
+    // 立即生成prompt并展示
+    const prompt = buildPrompt(configWithCorrectScore, promptConfig || undefined)
+    setPromptText(prompt)
+    setPromptOpen(true)
+    setRawResponseText("") // 清空上一次的原始结果
+    setShowPromptPanel(true) // 生成试卷时显示折叠面板
     setIsGenerating(true)
     try {
       const result = await generateTestPaper(configWithCorrectScore, openaiConfig, promptConfig || undefined)
-      setGeneratedTest(result)
+      setGeneratedTest(result.test)
+      setRawResponseText(result.rawResponse || "")
       setActiveTab("preview")
     } catch (error) {
       console.error("生成试卷失败:", error)
@@ -259,6 +280,9 @@ export default function HomePage() {
             <body>
               <!-- 试卷题目部分 -->
               <div class="header">
+                <div style="background: #fffbe6; border-left: 4px solid #ffe58f; color: #ad8b00; padding: 10px 16px; border-radius: 4px; margin-bottom: 18px; font-size: 15px;">
+                  本试卷内容由AI大模型自动生成，仅供参考。
+                </div>
                 <h1>${generatedTest.title}</h1>
                 <p style="font-size: 18px; color: #666;">${generatedTest.subtitle}</p>
                 <div style="display: flex; justify-content: space-between; margin-top: 20px; font-size: 14px;">
@@ -291,12 +315,13 @@ export default function HomePage() {
                   <h2 style="color: #333; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
                     ${section.title} 
                     <span style="font-size: 14px; color: #666; font-weight: normal;">
-                      (${section.questions.length}题，共${section.questions.reduce((sum, q) => sum + q.points, 0)}分)
+                      (${Array.isArray(section.questions) ? section.questions.length : 0}题，共${Array.isArray(section.questions) ? section.questions.reduce((sum, q) => sum + q.points, 0) : 0}分)
                     </span>
                   </h2>
-                  ${section.questions
-                    .map(
-                      (q, i) => `
+                  ${Array.isArray(section.questions)
+                    ? section.questions
+                        .map(
+                          (q, i) => `
                     <div class="question">
                       <p style="margin-bottom: 10px;">
                         <strong>${i + 1}. ${q.question}</strong> 
@@ -326,8 +351,10 @@ export default function HomePage() {
                       }
                     </div>
                   `,
-                    )
-                    .join("")}
+                        )
+                        .join("")
+                    : ""
+                  }
                 </div>
               `,
                 )
@@ -336,22 +363,31 @@ export default function HomePage() {
               <!-- 答案解析部分 -->
               <div class="answer-section page-break">
                 <div class="header">
+                  <div style="background: #fffbe6; border-left: 4px solid #ffe58f; color: #ad8b00; padding: 10px 16px; border-radius: 4px; margin-bottom: 18px; font-size: 15px;">
+                    本试卷内容由AI大模型自动生成，仅供参考。
+                  </div>
                   <h1>答案与解析</h1>
                   <p style="font-size: 18px; color: #666;">${generatedTest.title}</p>
                 </div>
-                
-                ${generatedTest.answerKey
-                  .map(
-                    (item, index) => `
+                ${(() => {
+                  let qNum = 1;
+                  let html = "";
+                  generatedTest.sections.forEach(section => {
+                    if (Array.isArray(section.questions)) {
+                      section.questions.forEach(q => {
+                        html += `
                   <div class="answer-item">
                     <div class="answer-header">
-                      第${index + 1}题 - 答案：${item.answer}
+                      第${qNum++}题 - 答案：${q.answer ?? "-"}
                     </div>
-                    <div class="explanation">${item.explanation}</div>
+                    <div class="explanation">${q.explanation ?? "-"}</div>
                   </div>
-                `,
-                  )
-                  .join("")}
+                        `;
+                      });
+                    }
+                  });
+                  return html;
+                })()}
               </div>
             </body>
             </html>
@@ -692,6 +728,37 @@ export default function HomePage() {
           setShowPromptDialog(false)
         }}
       />
+
+      {/* Prompt 折叠面板 */}
+      {showPromptPanel && (
+        <div className="max-w-6xl mx-auto my-6">
+          <Accordion type="single" collapsible value={promptOpen ? "prompt" : undefined} onValueChange={(v: string | undefined) => setPromptOpen(!!v)}>
+            <AccordionItem value="prompt">
+              <AccordionTrigger>大模型的输入输出</AccordionTrigger>
+              <AccordionContent>
+                <div className="flex flex-col md:flex-row gap-6">
+                  <div className="flex-1 min-w-0 max-w-full md:max-w-[48%]">
+                    <div className="font-semibold mb-2">输入：提交给大模型的Prompt原文</div>
+                    {promptText ? (
+                      <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded border overflow-x-auto">{promptText}</pre>
+                    ) : (
+                      <div className="text-gray-400 text-center py-8">请先生成试卷后查看Prompt原文</div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 max-w-full md:max-w-[48%]">
+                    <div className="font-semibold mb-2">输出：大模型返回的原始内容</div>
+                    {rawResponseText ? (
+                      <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded border overflow-x-auto">{rawResponseText}</pre>
+                    ) : (
+                      <div className="text-gray-400 text-center py-8">暂无AI返回内容（本地样卷或尚未生成）</div>
+                    )}
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </div>
+      )}
     </div>
   )
 }

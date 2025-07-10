@@ -40,6 +40,9 @@ export function TestPaper({ test }: TestPaperProps) {
 
       <TabsContent value="questions">
         <Card className="max-w-4xl mx-auto">
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 p-3 mb-4 rounded">
+            本试卷内容由AI大模型自动生成，仅供参考。
+          </div>
           <CardHeader className="text-center space-y-4">
             <div>
               <h1 className="text-2xl font-bold">{test.title}</h1>
@@ -159,22 +162,35 @@ export function TestPaper({ test }: TestPaperProps) {
 
       <TabsContent value="answers">
         <Card className="max-w-4xl mx-auto">
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 p-3 mb-4 rounded">
+            本试卷内容由AI大模型自动生成，仅供参考。
+          </div>
           <CardHeader className="text-center">
             <h2 className="text-2xl font-bold">答案与解析</h2>
             <p className="text-gray-600">{test.title}</p>
           </CardHeader>
           <CardContent className="space-y-6">
-            {test.answerKey.map((item, index) => (
-              <div key={item.id} className="border-l-4 border-green-400 pl-4 py-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="font-semibold text-green-600">第{index + 1}题</span>
-                  <Badge variant="outline" className="text-green-600 border-green-300">
-                    答案：{item.answer}
-                  </Badge>
-                </div>
-                <p className="text-gray-700 text-sm leading-relaxed">{item.explanation}</p>
-              </div>
-            ))}
+            {(() => {
+              let questionNumber = 1;
+              const answerItems: any[] = [];
+              test.sections.forEach((section) => {
+                section.questions?.forEach((question) => {
+                  answerItems.push(
+                    <div key={question.id} className="border-l-4 border-green-400 pl-4 py-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-semibold text-green-600">第{questionNumber}题</span>
+                        <Badge variant="outline" className="text-green-600 border-green-300">
+                          答案：{question.answer ?? "-"}
+                        </Badge>
+                      </div>
+                      <p className="text-gray-700 text-sm leading-relaxed">{question.explanation ?? "-"}</p>
+                    </div>
+                  );
+                  questionNumber++;
+                });
+              });
+              return answerItems;
+            })()}
           </CardContent>
         </Card>
       </TabsContent>

@@ -39,8 +39,87 @@ interface PromptConfigDialogProps {
   onConfigSave: (config: PromptConfig) => void
 }
 
+const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json
+  {
+    "title": "一年级英语中等测试",
+    "subtitle": "Unit 1-3",
+    "instructions": "请认真阅读题目，仔细作答。听力题请仔细听录音。",
+    "totalScore": 100,
+    "sections": [
+      {
+        "type": "listening",
+        "title": "一、听力题（选择题形式）",
+        "listeningMaterial": "Hello, my name is Tom. I am seven years old. I like apples and bananas. My favorite color is blue. I have a pet dog named Max.",
+        "questions": [
+          {
+            "id": 1,
+            "question": "What is the boy's name?",
+            "answer": "C",
+            "options": ["Jack", "Mike", "Tom"],
+            "explanation": "从听力材料中可以听到'Hello, my name is Tom'，所以答案是Tom。",
+            "points": 5   
+          }
+        ]
+      },
+      {
+        "type": "multipleChoice",
+        "title": "二、选择题",
+        "questions": [
+          {
+            "id": 2,
+            "question": "What is your name?",
+            "options": ["My name is Tom", "I am a student", "Nice to meet you"],
+            "answer": "A",
+            "explanation": "询问姓名的标准回答是'My name is...'，所以选择A。",
+            "points": 5
+          }
+        ]
+      },
+      {
+        "type": "fillInBlank",
+        "title": "二、填空题",
+        "questions": [
+          {
+            "id": 3,
+            "question": "I ___ a student.",
+            "answer": "am",
+            "explanation": "主语是I，be动词应该用am。",
+            "points": 5
+          }
+        ]
+      },
+      {
+        "type": "reading",
+        "title": "三、阅读理解(选择题形式)",
+        "readingMaterial": "I am a student. I like apples. My favorite color is blue. I have a pet dog named Max.",
+        "questions": [
+          {
+            "id": 4,
+            "question": "What is I like?",
+            "options": ["I like apples", "I like oranges", "I like pears"],
+            "answer": "A",
+            "explanation": "从阅读材料中可以找到答案。",
+            "points": 5
+          }
+        ]
+      },
+      {
+        "type": "writing",
+        "title": "四、写作题",
+        "questions": [
+          {
+            "id": 5,
+            "question": "Write a short essay about your favorite color.",
+            "explanation": "评分标准：\n1. 内容完整，符合要求\n2. 语法正确，表达清晰\n3. 格式规范，无错别字\n4. 同时满足上述3点要求的，每个句子得一分",
+            "points": 5
+          }
+        ]
+      }
+    ]
+  }\`\`\`\n`;
+
 // 预设的prompt模板
-const DEFAULT_TEMPLATES: PromptTemplate[] = [
+export const DEFAULT_TEMPLATES: PromptTemplate[] = [
   {
     id: "standard",
     name: "标准模板",
@@ -61,20 +140,15 @@ const DEFAULT_TEMPLATES: PromptTemplate[] = [
 5. 写作题: {{writingCount}}道，每题{{writingScore}}分
 
 特殊要求：
-1. 听力题需要生成听力材料(listeningMaterial)，包含完整的听力文本
-2. 选择题必须有4个选项，选项内容不要包含A、B、C、D标签，只写纯内容
-3. 每道题都需要标准答案(answer)和详细解析(explanation)
-4. 题目顺序：听力题在最前面，写作题在最后面
-5. 生成完整的答案解析页面(answerKey)
+1. 如果重点知识点不为空，则所有题目必须以考核重点知识点为目的，且所有题目应覆盖完整的重点知识点。
+2. 听力题需要生成听力材料(listeningMaterial)，包含完整的听力文本，听力题默认为选择题的形式。
+3. 只有听力题的题目与听力材料(listeningMaterial)相关，其他题目都与听力材料(listeningMaterial)无关。
+4. 选择题必须有3个选项，选项内容不要包含A、B、C标签，只写纯内容
+5. 除写作题以外，其他题目都需要标准答案(answer)和详细解析(explanation)
+6. 写作题不需要答案(answer)，解析(explanation)中写评分标准
 
-试卷结构:
-- 试卷包含标题(title)，副标题(subtitle)，考试说明(instructions)，总分(totalScore)
-- 听力材料(listeningMaterial)：完整的听力文本内容
-- 试卷分为多个section，按顺序：听力题、选择题、填空题、阅读理解、写作题
-- 每个section包含题型(type)，标题(title)，题目列表(questions)
-- 每道题包含题目内容(question)，分值(points)，id，答案(answer)，解析(explanation)
-- 选择题必须包含4个选项(options)，格式为["选项1内容", "选项2内容", "选项3内容", "选项4内容"]，不要包含A、B、C、D标签
-- 答案解析页面(answerKey)：包含所有题目的答案和解析`,
+试卷结构: 
+- 严格按照json格式输出，json不要包裹引号，不要输出其他内容。`,
     variables: [
       "grade",
       "difficulty",
@@ -107,11 +181,11 @@ const DEFAULT_TEMPLATES: PromptTemplate[] = [
 - 试卷总分: {{totalScore}}分
 
 ## 题型分布
-1. **听力理解** ({{listeningCount}}题 × {{listeningScore}}分)
-2. **单项选择** ({{multipleChoiceCount}}题 × {{multipleChoiceScore}}分)
-3. **词汇填空** ({{fillInBlankCount}}题 × {{fillInBlankScore}}分)
+1. **听力题** ({{listeningCount}}题 × {{listeningScore}}分)
+2. **选择题** ({{multipleChoiceCount}}题 × {{multipleChoiceScore}}分)
+3. **填空题** ({{fillInBlankCount}}题 × {{fillInBlankScore}}分)
 4. **阅读理解** ({{readingCount}}题 × {{readingScore}}分)
-5. **书面表达** ({{writingCount}}题 × {{writingScore}}分)
+5. **写作题** ({{writingCount}}题 × {{writingScore}}分)
 
 ## 质量要求
 ### 听力题要求：
@@ -141,7 +215,7 @@ const DEFAULT_TEMPLATES: PromptTemplate[] = [
 - 评分标准要明确具体
 
 ## 输出格式
-请严格按照JSON格式输出，包含完整的试卷结构、答案解析和元数据信息。`,
+请严格按照JSON示例格式输出，不要包裹引号，不要输出其他内容。`,
     variables: [
       "grade",
       "difficulty",
@@ -202,7 +276,8 @@ const DEFAULT_TEMPLATES: PromptTemplate[] = [
 - 难度要循序渐进，增强自信心
 - 设计要新颖有趣，激发学习兴趣
 
-请生成符合要求的JSON格式试卷数据。`,
+## 输出格式
+请严格按照JSON示例格式输出，不要包裹引号，不要输出其他内容。`,
     variables: [
       "grade",
       "difficulty",
@@ -258,7 +333,8 @@ const DEFAULT_TEMPLATES: PromptTemplate[] = [
 - 阅读题：理解深入，推理合理
 - 写作题：内容完整，语言流畅，格式规范
 
-请按照标准考试试卷格式生成JSON数据。`,
+## 输出格式
+请严格按照JSON示例格式输出，不要包裹引号，不要输出其他内容。`,
     variables: [
       "grade",
       "difficulty",
@@ -279,30 +355,52 @@ const DEFAULT_TEMPLATES: PromptTemplate[] = [
   },
 ]
 
+// 对DEFAULT_TEMPLATES中每个template都在结尾拼接JSON_EXAMPLE
+DEFAULT_TEMPLATES.forEach(t => { if (!t.template.endsWith(JSON_EXAMPLE)) t.template += JSON_EXAMPLE })
+
+const getJsonExampleFromTemplate = (template: string): string | null => {
+  const match = template.match(/```json([\s\S]*?)```/)
+  return match ? match[1].trim() : null
+}
+
+const stripJsonExample = (template: string): string => {
+  return template.replace(/\n*请严格按照如下JSON格式输出：[\s\S]*?```json[\s\S]*?```/g, '').trim()
+}
+
 export function PromptConfigDialog({ open, onOpenChange, config, onConfigSave }: PromptConfigDialogProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<string>(config?.selectedTemplate || "standard")
-  const [customTemplate, setCustomTemplate] = useState<string>(config?.customTemplate || DEFAULT_TEMPLATES[0].template)
+  const standardTemplate = DEFAULT_TEMPLATES.find(t => t.id === "standard")?.template || ""
+  const [customTemplate, setCustomTemplate] = useState<string>(
+    config?.customTemplate && getJsonExampleFromTemplate(config.customTemplate)
+      ? config.customTemplate
+      : standardTemplate
+  )
   const [activeTab, setActiveTab] = useState("templates")
 
   useEffect(() => {
     if (config) {
       setSelectedTemplate(config.selectedTemplate || "standard")
-      setCustomTemplate(config.customTemplate || DEFAULT_TEMPLATES[0].template)
+      if (config.customTemplate) {
+        setCustomTemplate(stripJsonExample(config.customTemplate))
+      } else {
+        setCustomTemplate(stripJsonExample(standardTemplate))
+      }
     }
-  }, [config])
+  }, [config, standardTemplate])
 
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplate(templateId)
     const template = DEFAULT_TEMPLATES.find((t) => t.id === templateId)
     if (template) {
-      setCustomTemplate(template.template)
+      setCustomTemplate(stripJsonExample(template.template))
     }
   }
 
   const handleSave = () => {
     const newConfig: PromptConfig = {
       selectedTemplate,
-      customTemplate,
+      // 保存时拼接json示例，生成试卷时用的prompt为主内容+json示例
+      customTemplate: `${customTemplate}\n\n${JSON_EXAMPLE}`,
       variables: {},
     }
     onConfigSave(newConfig)
@@ -313,11 +411,14 @@ export function PromptConfigDialog({ open, onOpenChange, config, onConfigSave }:
     const defaultTemplate = DEFAULT_TEMPLATES.find((t) => t.id === "standard")
     if (defaultTemplate) {
       setSelectedTemplate("standard")
-      setCustomTemplate(defaultTemplate.template)
+      setCustomTemplate(stripJsonExample(defaultTemplate.template))
     }
   }
 
   const currentTemplate = DEFAULT_TEMPLATES.find((t) => t.id === selectedTemplate)
+
+  // 自定义编辑Tab下，展示时统一拼接JSON_EXAMPLE用于只读区
+  const fullTemplateWithJson = `${customTemplate}\n\n${JSON_EXAMPLE}`
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -342,9 +443,7 @@ export function PromptConfigDialog({ open, onOpenChange, config, onConfigSave }:
               {DEFAULT_TEMPLATES.map((template) => (
                 <Card
                   key={template.id}
-                  className={`cursor-pointer transition-colors ${
-                    selectedTemplate === template.id ? "ring-2 ring-primary" : "hover:bg-gray-50"
-                  }`}
+                  className={`cursor-pointer transition-colors ${selectedTemplate === template.id ? "ring-2 ring-primary" : "hover:bg-gray-50"}`}
                   onClick={() => handleTemplateSelect(template.id)}
                 >
                   <CardHeader className="pb-2">
@@ -357,7 +456,7 @@ export function PromptConfigDialog({ open, onOpenChange, config, onConfigSave }:
                   <CardContent>
                     <div className="text-sm text-gray-600">
                       <p className="mb-2">支持变量: {template.variables.length}个</p>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1 mb-2">
                         {template.variables.slice(0, 8).map((variable) => (
                           <Badge key={variable} variant="outline" className="text-xs">
                             {`{{${variable}}}`}
@@ -393,12 +492,18 @@ export function PromptConfigDialog({ open, onOpenChange, config, onConfigSave }:
                 </span>
               </div>
             </div>
-
+            {/* JSON 示例只读高亮显示 */}
+            <div className="mt-4">
+              <div className="font-semibold mb-1 text-gray-800">JSON格式示例（只读）</div>
+              <pre className="bg-gray-50 p-3 rounded border text-xs overflow-x-auto text-gray-800 select-none" style={{userSelect:'none', maxHeight: '180px', overflowY: 'auto'}}>
+                {getJsonExampleFromTemplate(`${customTemplate}\n\n${JSON_EXAMPLE}`) || '无JSON示例'}
+              </pre>
+            </div>
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription>
                 <strong>提示：</strong>模板中的变量会在生成试卷时自动替换为实际值。
-                请确保JSON输出格式的要求清晰明确，以获得最佳的生成效果。
+                请严格要求大模型按照json示例输出。
               </AlertDescription>
             </Alert>
           </TabsContent>
@@ -516,4 +621,13 @@ export function PromptConfigDialog({ open, onOpenChange, config, onConfigSave }:
       </DialogContent>
     </Dialog>
   )
+}
+
+// 获取最终用于生成试卷的prompt（无自定义则用标准模板+json示例）
+export function getFinalPromptTemplate(config: PromptConfig | null): string {
+  const standardTemplate = DEFAULT_TEMPLATES.find(t => t.id === "standard")?.template || ""
+  if (config?.customTemplate) {
+    return config.customTemplate
+  }
+  return `${standardTemplate}\n\n${JSON_EXAMPLE}`
 }
