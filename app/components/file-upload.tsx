@@ -39,11 +39,12 @@ export function FileUpload({ onKnowledgePointsExtracted, openaiConfig }: FileUpl
       "application/msword", // .doc
       "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
       "application/vnd.ms-powerpoint", // .ppt
+      "application/pdf", // .pdf
       "text/plain", // .txt
     ]
 
     if (!allowedTypes.includes(file.type)) {
-      alert("请上传支持的文件格式：Word文档(.docx, .doc)、PowerPoint(.pptx, .ppt)或文本文件(.txt)")
+      alert("请上传支持的文件格式：Word文档(.docx, .doc)、PowerPoint(.pptx, .ppt)、PDF(.pdf)或文本文件(.txt)")
       return
     }
 
@@ -107,8 +108,8 @@ export function FileUpload({ onKnowledgePointsExtracted, openaiConfig }: FileUpl
         return
       }
 
-      // 限制文本长度为10k字符
-      const maxTextLength = 10000
+      // 限制文本长度为30k字符
+      const maxTextLength = 30000
       if (text.length > maxTextLength) {
         text = text.substring(0, maxTextLength)
         setParseError(`文本内容过长，已截取前${maxTextLength}个字符`)
@@ -179,7 +180,7 @@ export function FileUpload({ onKnowledgePointsExtracted, openaiConfig }: FileUpl
         <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
           <input
             type="file"
-            accept=".docx,.doc,.pptx,.ppt,.txt"
+            accept=".docx,.doc,.pptx,.ppt,.pdf,.txt"
             onChange={handleFileSelect}
             className="hidden"
             id="file-upload"
@@ -193,8 +194,8 @@ export function FileUpload({ onKnowledgePointsExtracted, openaiConfig }: FileUpl
                 <Upload className="w-8 h-8 text-gray-400" />
               )}
               <p className="text-sm text-gray-600">{isUploading ? "正在处理文件..." : "点击上传文档"}</p>
-              <p className="text-xs text-gray-500">支持 Word(.docx, .doc)、PowerPoint(.pptx, .ppt)、文本文件(.txt)</p>
-              <p className="text-xs text-gray-400">文件大小限制：100MB，提取文本限制：10K字符</p>
+              <p className="text-xs text-gray-500">请上传支持的文件格式：Word文档(.docx, .doc)、PowerPoint(.pptx, .ppt)、PDF(.pdf)或文本文件(.txt)</p>
+              <p className="text-xs text-gray-400">文件大小限制：100MB，提取文本限制：30K字符</p>
             </div>
           </label>
         </div>
@@ -226,8 +227,8 @@ export function FileUpload({ onKnowledgePointsExtracted, openaiConfig }: FileUpl
                     <p className="text-gray-600 font-medium">提取的文本内容：</p>
                     <div className="flex items-center gap-2">
                       <span className="text-gray-500 text-xs">
-                        {extractedText.length}/10,000 字符
-                        {extractedText.length >= 10000 && " (已达上限)"}
+                        {extractedText.length}/30,000 字符
+                        {extractedText.length >= 30000 && " (已达上限)"}
                       </span>
                       <Button
                         variant="ghost"

@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
       "application/msword", // .doc
       "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
       "application/vnd.ms-powerpoint", // .ppt
+      "application/pdf", // .pdf
     ]
 
     if (!allowedTypes.includes(file.type)) {
@@ -34,7 +35,30 @@ export async function POST(request: NextRequest) {
       const arrayBuffer = await file.arrayBuffer()
 
       // 根据文件类型选择解析方法
-      if (file.type.includes("presentationml") || file.name.toLowerCase().endsWith(".pptx")) {
+      // 根据文件类型选择解析方法
+      if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+        // 使用pdf-parse库替代pdfjs-dist以避免Node.js环境问题
+        const pdfParse = await import("pdf-parse")
+        
+        try {
+          const pdfData = await pdfParse.default(Buffer.from(arrayBuffer))
+          const content = pdfData.text
+          const wordCount = content.split(/\s+/).filter((word: string) => word.length > 0).length
+
+          result = {
+            content,
+            metadata: {
+              wordCount,
+              pageCount: pdfData.numpages,
+              parseEngine: "pdf-parse",
+            },
+          }
+        } catch (err) {
+          console.error("[PDF] pdf-parse error:", err)
+          throw err
+        }
+      }
+      else if (file.type.includes("presentationml") || file.name.toLowerCase().endsWith(".pptx")) {
         // PPTX 文件 - 使用JSZip + XML解析器
         result = await parsePptx(arrayBuffer)
       } else if (file.type.includes("ms-powerpoint") || file.name.toLowerCase().endsWith(".ppt")) {
@@ -60,8 +84,8 @@ export async function POST(request: NextRequest) {
       // 清理提取的文本
       const cleanedText = cleanExtractedText(result.content)
 
-      // 限制文本长度为10k字符
-      const maxTextLength = 10000
+      // 限制文本长度为30k字符
+      const maxTextLength = 30000
       const finalText = cleanedText.length > maxTextLength ? cleanedText.substring(0, maxTextLength) : cleanedText
 
       if (!finalText.trim() || finalText.length < 10) {

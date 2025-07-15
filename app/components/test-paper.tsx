@@ -19,6 +19,8 @@ interface TestPaperProps {
         points: number
         explanation?: string
       }>
+      listeningMaterial?: string
+      readingMaterial?: string
     }>
     totalScore: number
     listeningMaterial?: string
@@ -78,6 +80,22 @@ export function TestPaper({ test }: TestPaperProps) {
                     {section.questions.length}题，共{section.questions.reduce((sum, q) => sum + q.points, 0)}分
                   </Badge>
                 </div>
+
+                {/* 渲染听力材料 */}
+                {section.listeningMaterial && (
+                  <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-400 mb-2">
+                    <h3 className="font-semibold text-blue-800 mb-2">听力材料</h3>
+                    <div className="text-sm text-blue-700 whitespace-pre-line">{section.listeningMaterial}</div>
+                  </div>
+                )}
+
+                {/* 渲染阅读材料 */}
+                {section.readingMaterial && (
+                  <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-400 mb-2">
+                    <h3 className="font-semibold text-green-800 mb-2">阅读材料</h3>
+                    <div className="text-sm text-green-700 whitespace-pre-line">{section.readingMaterial}</div>
+                  </div>
+                )}
 
                 <div className="space-y-6">
                   {section.questions.map((question, questionIndex) => (
@@ -146,6 +164,20 @@ export function TestPaper({ test }: TestPaperProps) {
                               <div className="flex items-center gap-4">
                                 <span className="text-sm text-gray-500">答案：</span>
                                 <div className="border-b border-gray-300 w-32 h-6"></div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 判断题答题区域 */}
+                          {section.type === "trueFalse" && (
+                            <div className="mt-3">
+                              <div className="flex items-center gap-4">
+                                <span className="text-sm text-gray-500">请在括号内填写"对"或"错"：</span>
+                                <div className="flex items-center gap-2">
+                                  <span>（</span>
+                                  <div className="border-b border-gray-300 w-12 h-6"></div>
+                                  <span>）</span>
+                                </div>
                               </div>
                             </div>
                           )}

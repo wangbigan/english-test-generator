@@ -1,14 +1,9 @@
-/** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  images: {
-    unoptimized: true,
-  },
-}
+  serverExternalPackages: ['pdf-parse'],
+  webpack: (config) => {
+    config.externals.push('pdf-parse');
+    return config;
+  }
+};
 
 export default nextConfig

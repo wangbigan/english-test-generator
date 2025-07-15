@@ -50,6 +50,7 @@ const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json
         "type": "listening",
         "title": "一、听力题",
         "listeningMaterial": "Hello, my name is Tom. I am seven years old. I like apples and bananas. My favorite color is blue. I have a pet dog named Max.",
+        "questionNumber": 1,
         "questions": [
           {
             "id": 1,
@@ -57,13 +58,14 @@ const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json
             "answer": "C",
             "options": ["Jack", "Mike", "Tom"],
             "explanation": "从听力材料中可以听到'Hello, my name is Tom'，所以答案是Tom。",
-            "points": 5   
+            "points": 2
           }
         ]
       },
       {
         "type": "multipleChoice",
         "title": "二、选择题",
+        "questionNumber": 1,
         "questions": [
           {
             "id": 2,
@@ -71,47 +73,64 @@ const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json
             "options": ["My name is Tom", "I am a student", "Nice to meet you"],
             "answer": "A",
             "explanation": "询问姓名的标准回答是'My name is...'，所以选择A。",
-            "points": 5
+            "points": 2
           }
         ]
       },
       {
         "type": "fillInBlank",
-        "title": "二、填空题",
+        "title": "三、填空题",
+        "questionNumber": 1,
         "questions": [
           {
             "id": 3,
             "question": "I ___ a student.",
             "answer": "am",
             "explanation": "主语是I，be动词应该用am。",
-            "points": 5
+            "points": 2
+          }
+        ]
+      },
+      {
+        "type": "trueFalse",
+        "title": "四、判断题",
+        "questionNumber": 1,
+        "questions": [
+          {
+            "id": 4,
+            "question": "I like apples.",
+            "answer": "true",
+            "explanation": "从阅读材料中可以找到答案。",
+            "points": 2
           }
         ]
       },
       {
         "type": "reading",
-        "title": "三、阅读理解",
+        "title": "五、阅读理解",
         "readingMaterial": "I am a student. I like apples. My favorite color is blue. I have a pet dog named Max.",
+        "questionNumber": 1,
         "questions": [
           {
-            "id": 4,
+            "id": 5,
             "question": "What is I like?",
             "options": ["I like apples", "I like oranges", "I like pears"],
             "answer": "A",
             "explanation": "从阅读材料中可以找到答案。",
-            "points": 5
+            "points": 2
           }
         ]
       },
       {
         "type": "writing",
-        "title": "四、写作题",
+        "title": "六、写作题",
+        "questionNumber": 1,
         "questions": [
           {
-            "id": 5,
+            "id": 6,
             "question": "Write a short essay about your favorite color.",
             "explanation": "评分标准：\n1. 内容完整，符合要求\n2. 语法正确，表达清晰\n3. 格式规范，无错别字\n4. 同时满足上述3点要求的，每个句子得一分",
-            "points": 5
+            "points": 10
           }
         ]
       }
@@ -134,10 +153,11 @@ export const DEFAULT_TEMPLATES: PromptTemplate[] = [
 
 题型配比（按以下顺序出题）:
 1. 听力题: {{listeningCount}}道，每题{{listeningScore}}分
-2. 选择题: {{multipleChoiceCount}}道，每题{{multipleChoiceScore}}分（每题必须有4个选项）
+2. 选择题: {{multipleChoiceCount}}道，每题{{multipleChoiceScore}}分（每题3个选项）
 3. 填空题: {{fillInBlankCount}}道，每题{{fillInBlankScore}}分
-4. 阅读理解: {{readingCount}}道，每题{{readingScore}}分
-5. 写作题: {{writingCount}}道，每题{{writingScore}}分
+4. 判断题: {{trueFalseCount}}道，每题{{trueFalseScore}}分
+5. 阅读理解: {{readingCount}}道，每题{{readingScore}}分
+6. 写作题: {{writingCount}}道，每题{{writingScore}}分
 
 特殊要求：
 1. 如果重点知识点不为空，则所有题目必须以考核重点知识点为目的，且所有题目应覆盖完整的重点知识点。
@@ -146,6 +166,7 @@ export const DEFAULT_TEMPLATES: PromptTemplate[] = [
 4. 选择题必须有3个选项，选项内容不要包含A、B、C标签，只写纯内容
 5. 除写作题以外，其他题目都需要标准答案(answer)和详细解析(explanation)
 6. 写作题不需要答案(answer)，解析(explanation)中写评分标准
+7. 判断题为判断对错，答案为“对”或“错”，并给出解析。
 
 试卷结构: 
 - 严格按照json格式输出，json不要包裹引号，不要输出其他内容。`,
@@ -165,6 +186,8 @@ export const DEFAULT_TEMPLATES: PromptTemplate[] = [
       "readingScore",
       "writingCount",
       "writingScore",
+      "trueFalseCount",
+      "trueFalseScore",
     ],
   },
   {
@@ -186,6 +209,7 @@ export const DEFAULT_TEMPLATES: PromptTemplate[] = [
 3. **填空题** ({{fillInBlankCount}}题 × {{fillInBlankScore}}分)
 4. **阅读理解** ({{readingCount}}题 × {{readingScore}}分)
 5. **写作题** ({{writingCount}}题 × {{writingScore}}分)
+6. **判断题** ({{trueFalseCount}}题 × {{trueFalseScore}}分)
 
 ## 质量要求
 ### 听力题要求：
@@ -232,6 +256,8 @@ export const DEFAULT_TEMPLATES: PromptTemplate[] = [
       "readingScore",
       "writingCount",
       "writingScore",
+      "trueFalseCount",
+      "trueFalseScore",
     ],
   },
   {
@@ -294,6 +320,8 @@ export const DEFAULT_TEMPLATES: PromptTemplate[] = [
       "readingScore",
       "writingCount",
       "writingScore",
+      "trueFalseCount",
+      "trueFalseScore",
     ],
   },
   {
@@ -351,12 +379,14 @@ export const DEFAULT_TEMPLATES: PromptTemplate[] = [
       "readingTotalScore",
       "writingCount",
       "writingTotalScore",
+      "trueFalseCount",
+      "trueFalseTotalScore",
     ],
   },
 ]
 
-// 对DEFAULT_TEMPLATES中每个template都在结尾拼接JSON_EXAMPLE
-DEFAULT_TEMPLATES.forEach(t => { if (!t.template.endsWith(JSON_EXAMPLE)) t.template += JSON_EXAMPLE })
+// 注释掉自动拼接JSON_EXAMPLE，避免与generate-test.ts中的defaultPrompt重复
+// DEFAULT_TEMPLATES.forEach(t => { if (!t.template.endsWith(JSON_EXAMPLE)) t.template += JSON_EXAMPLE })
 
 const getJsonExampleFromTemplate = (template: string): string | null => {
   const match = template.match(/```json([\s\S]*?)```/)
@@ -399,12 +429,19 @@ export function PromptConfigDialog({ open, onOpenChange, config, onConfigSave }:
   const handleSave = () => {
     const newConfig: PromptConfig = {
       selectedTemplate,
-      // 保存时拼接json示例，生成试卷时用的prompt为主内容+json示例
-      customTemplate: `${customTemplate}\n\n${JSON_EXAMPLE}`,
+      // 如果用户修改了模板内容，且与选中的预设模板不同，则保存为自定义模板
+      // 否则清空customTemplate，使用selectedTemplate
+      customTemplate: isCustomTemplate() ? customTemplate : "",
       variables: {},
     }
     onConfigSave(newConfig)
     onOpenChange(false)
+  }
+
+  // 判断当前是否为自定义模板
+  const isCustomTemplate = () => {
+    const selectedTemplateContent = DEFAULT_TEMPLATES.find(t => t.id === selectedTemplate)?.template || ""
+    return customTemplate !== stripJsonExample(selectedTemplateContent)
   }
 
   const handleReset = () => {
@@ -545,6 +582,7 @@ export function PromptConfigDialog({ open, onOpenChange, config, onConfigSave }:
                       { type: "听力题", prefix: "listening" },
                       { type: "选择题", prefix: "multipleChoice" },
                       { type: "填空题", prefix: "fillInBlank" },
+                      { type: "判断题", prefix: "trueFalse" },
                       { type: "阅读题", prefix: "reading" },
                       { type: "写作题", prefix: "writing" },
                     ].map(({ type, prefix }) => (
@@ -616,11 +654,23 @@ export function PromptConfigDialog({ open, onOpenChange, config, onConfigSave }:
   )
 }
 
-// 获取最终用于生成试卷的prompt（无自定义则用标准模板+json示例）
+// 获取最终用于生成试卷的prompt（根据配置选择模板+json示例）
 export function getFinalPromptTemplate(config: PromptConfig | null): string {
-  const standardTemplate = DEFAULT_TEMPLATES.find(t => t.id === "standard")?.template || ""
+  let template = ""
+  
   if (config?.customTemplate) {
-    return config.customTemplate
+    // 用户有自定义模板，使用自定义模板
+    template = config.customTemplate
+  } else {
+    // 根据选择的模板ID获取对应模板
+    const selectedTemplate = DEFAULT_TEMPLATES.find(t => t.id === (config?.selectedTemplate || "standard"))
+    template = selectedTemplate?.template || DEFAULT_TEMPLATES.find(t => t.id === "standard")?.template || ""
   }
-  return `${standardTemplate}\n\n${JSON_EXAMPLE}`
+  
+  // 检查模板是否已经包含JSON示例，如果没有则添加
+  if (!getJsonExampleFromTemplate(template)) {
+    return `${template}\n\n${JSON_EXAMPLE}`
+  }
+  
+  return template
 }

@@ -29,6 +29,7 @@
     "lucide-react": "^0.454.0",
     "mammoth": "latest",
     "next": "15.2.4",
+    "pdf-parse": "^1.1.1",
     "react": "^19",
     "react-dom": "^19",
     "tailwind-merge": "^2.5.5",
@@ -38,6 +39,7 @@
   },
   "devDependencies": {
     "@types/node": "^22",
+    "@types/pdf-parse": "^1.1.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/xml2js": "^0.4.14",

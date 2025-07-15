@@ -2,6 +2,7 @@ import { generateText } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
 import { createDeepSeek } from "@ai-sdk/deepseek"
 import { buildSamplePaper } from "./build-sample-paper"
+import { getFinalPromptTemplate } from "../components/prompt-config-dialog"
 
 interface TestConfig {
   grade: string
@@ -15,6 +16,7 @@ interface TestConfig {
     reading: { count: number; score: number }
     writing: { count: number; score: number }
     listening: { count: number; score: number }
+    trueFalse: { count: number; score: number }
   }
 }
 
@@ -99,127 +101,8 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
 }
 
 export function buildPrompt(config: TestConfig, promptConfig?: PromptConfig): string {
-  // 默认prompt模板
-  const defaultPrompt = `请你根据以下要求，生成一份小学英语试卷，返回 JSON 格式数据：
-
-- 年级: {{grade}}
-- 难度: {{difficulty}}
-- 主题: {{theme}}
-- 重点知识点: {{knowledgePoints}}
-- 总分: {{totalScore}}
-
-题型配比（按以下顺序出题）:
-1. 听力题: {{listeningCount}}道，每题{{listeningScore}}分
-2. 选择题: {{multipleChoiceCount}}道，每题{{multipleChoiceScore}}分（每题必须有4个选项）
-3. 填空题: {{fillInBlankCount}}道，每题{{fillInBlankScore}}分
-4. 阅读理解: {{readingCount}}道，每题{{readingScore}}分
-5. 写作题: {{writingCount}}道，每题{{writingScore}}分
-
-特殊要求：
-1. 听力题需要生成听力材料(listeningMaterial)，包含完整的听力文本
-2. 选择题必须有3个选项，选项内容不要包含A、B、C标签，只写纯内容
-3. 除写作题以外，其他题目都需要标准答案(answer)和详细解析(explanation)
-4. 写作题不需要答案(answer)，解析(explanation)中写评分标准
-5. 题目顺序：听力题在最前面，写作题在最后面
-6. 生成完整的答案解析页面(answerKey)
-
-试卷结构:
-- 试卷包含标题(title)，副标题(subtitle)，考试说明(instructions)，总分(totalScore)
-- 听力材料(listeningMaterial)：完整的听力文本内容
-- 试卷分为多个section，按顺序：听力题、选择题、填空题、阅读理解、写作题
-- 每个section包含题型(type)，标题(title)，题目列表(questions)
-- 每道题包含题目内容(question)，分值(points)，id，答案(answer)，解析(explanation)
-- 选择题必须包含3个选项(options)，格式为["选项1内容", "选项2内容", "选项3内容", "选项4内容"]，不要包含A、B、C、D标签
-- 答案解析页面(answerKey)：包含所有题目的答案和解析
-
-严格按照json格式输出，不要输出其他内容。
-
-JSON 示例:
-\`\`\`json
-{
-  "title": "一年级英语中等测试",
-  "subtitle": "Unit 1-3",
-  "instructions": "请认真阅读题目，仔细作答。听力题请仔细听录音。",
-  "totalScore": 100,
-  "sections": [
-    {
-      "type": "listening",
-      "title": "一、听力题（选择题形式）",
-      "listeningMaterial": "Hello, my name is Tom. I am seven years old. I like apples and bananas. My favorite color is blue. I have a pet dog named Max.",
-      "questions": [
-        {
-          "id": 1,
-          "question": "What is the boy's name?",
-          "answer": "C",
-          "options": ["Jack", "Mike", "Tom"],
-          "explanation": "从听力材料中可以听到'Hello, my name is Tom'，所以答案是Tom。",
-          "points": 5   
-        }
-      ]
-    },
-    {
-      "type": "multipleChoice",
-      "title": "二、选择题",
-      "questions": [
-        {
-          "id": 2,
-          "question": "What is your name?",
-          "options": ["My name is Tom", "I am a student", "Nice to meet you"],
-          "answer": "A",
-          "explanation": "询问姓名的标准回答是'My name is...'，所以选择A。",
-          "points": 5
-        }
-      ]
-    },
-    {
-      "type": "fillInBlank",
-      "title": "二、填空题",
-      "questions": [
-        {
-          "id": 3,
-          "question": "I ___ a student.",
-          "answer": "am",
-          "explanation": "主语是I，be动词应该用am。",
-          "points": 5
-        }
-      ]
-    },
-    {
-      "type": "reading",
-      "title": "三、阅读理解(选择题形式)",
-      "readingMaterial": "I am a student. I like apples. My favorite color is blue. I have a pet dog named Max.",
-      "questions": [
-        {
-          "id": 4,
-          "question": "What is I like?",
-          "options": ["I like apples", "I like oranges", "I like pears"],
-          "answer": "A",
-          "explanation": "从阅读材料中可以找到答案。",
-          "points": 5
-        }
-      ]
-    },
-    {
-      "type": "writing",
-      "title": "四、写作题",
-      "question": "Write a short essay about your favorite color.",
-      "explanation": "评分标准：\n1. 内容完整，符合要求\n2. 语法正确，表达清晰\n3. 格式规范，无错别字\n4. 同时满足上述3点要求的，每个句子得一分",
-      "points": 5
-    }
-  ],
-  "answerKey": [
-    {
-      "id": 1,
-      "answer": "Tom",
-      "explanation": "从听力材料中可以听到'Hello, my name is Tom'，所以答案是Tom。"
-    }
-  ]
-}
-\`\`\`
-`
-
-  // 使用用户配置的模板或默认模板
-  const template = promptConfig?.customTemplate || defaultPrompt
+  // 使用getFinalPromptTemplate函数获取完整的prompt模板（包含JSON示例）
+  const template = getFinalPromptTemplate(promptConfig || null)
 
   // 准备变量替换的数据
   const variables = {
@@ -255,6 +138,11 @@ JSON 示例:
     writingCount: config.questionTypes.writing.count.toString(),
     writingScore: config.questionTypes.writing.score.toString(),
     writingTotalScore: (config.questionTypes.writing.count * config.questionTypes.writing.score).toString(),
+
+    // 判断题
+    trueFalseCount: config.questionTypes.trueFalse.count.toString(),
+    trueFalseScore: config.questionTypes.trueFalse.score.toString(),
+    trueFalseTotalScore: (config.questionTypes.trueFalse.count * config.questionTypes.trueFalse.score).toString(),
   }
 
   // 替换模板中的变量

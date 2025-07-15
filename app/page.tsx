@@ -31,6 +31,7 @@ interface TestConfig {
     reading: { count: number; score: number }
     writing: { count: number; score: number }
     listening: { count: number; score: number }
+    trueFalse: { count: number, score: number }  // 判断题
   }
 }
 
@@ -73,10 +74,11 @@ export default function HomePage() {
     knowledgePoints: "",
     totalScore: 100,
     questionTypes: {
-      listening: { count: 5, score: 6 },
+      listening: { count: 10, score: 2 },
       multipleChoice: { count: 10, score: 2 },
       fillInBlank: { count: 10, score: 2 },
-      reading: { count: 5, score: 4 },
+      trueFalse: { count: 5, score: 2 },
+      reading: { count: 10, score: 2 },
       writing: { count: 1, score: 10 },
     },
   })
@@ -88,14 +90,10 @@ export default function HomePage() {
     baseUrl: string
     model: string
   } | null>(null)
-  const [promptConfig, setPromptConfig] = useState<PromptConfig | null>(() => {
-    const standardTemplate = DEFAULT_TEMPLATES.find(t => t.id === "standard")?.template || ""
-    const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json\n  {\n    \"title\": \"一年级英语中等测试\",\n    \"subtitle\": \"Unit 1-3\",\n    \"instructions\": \"请认真阅读题目，仔细作答。听力题请仔细听录音。\",\n    \"totalScore\": 100,\n    \"listeningMaterial\": \"Hello, my name is Tom. I am seven years old. I like apples and bananas. My favorite color is blue. I have a pet dog named Max.\",\n    \"sections\": [\n      {\n        \"type\": \"listening\",\n        \"title\": \"一、听力题\",\n        \"questions\": [\n          {\n            \"id\": 1,\n            \"question\": \"What is the boy's name?\",\n            \"answer\": \"Tom\",\n            \"explanation\": \"从听力材料中可以听到'Hello, my name is Tom'，所以答案是Tom。\",\n            \"points\": 5   \n          }\n        ]\n      },\n      {\n        \"type\": \"multipleChoice\",\n        \"title\": \"二、选择题\",\n        \"questions\": [\n          {\n            \"id\": 2,\n            \"question\": \"What is your name?\",\n            \"options\": [\"My name is Tom\", \"I am a student\", \"Nice to meet you\", \"How are you\"],\n            \"answer\": \"A\",\n            \"explanation\": \"询问姓名的标准回答是'My name is...'，所以选择A。\",\n            \"points\": 5\n          }\n        ]\n      }\n    ],\n    \"answerKey\": [\n      {\n        \"id\": 1,\n        \"answer\": \"Tom\",\n        \"explanation\": \"从听力材料中可以听到'Hello, my name is Tom'，所以答案是Tom。\"\n      }\n    ]\n  }\n\`\`\`\n`;
-    return {
-      selectedTemplate: "standard",
-      customTemplate: `${standardTemplate}\n\n${JSON_EXAMPLE}`,
-      variables: {},
-    }
+  const [promptConfig, setPromptConfig] = useState<PromptConfig | null>({
+    selectedTemplate: "standard",
+    customTemplate: "",
+    variables: {},
   })
 
   // 检查本地存储的配置
@@ -672,11 +670,12 @@ export default function HomePage() {
                 <CardContent className="space-y-6">
                   {/* 按照题目顺序重新排列 */}
                   {[
-                    { key: "listening", name: "听力题（第一部分）" },
-                    { key: "multipleChoice", name: "选择题（4个选项）" },
+                    { key: "listening", name: "听力题" },
+                    { key: "multipleChoice", name: "选择题" },
                     { key: "fillInBlank", name: "填空题" },
+                    { key: "trueFalse", name: "判断题" },
                     { key: "reading", name: "阅读理解" },
-                    { key: "writing", name: "写作题（最后部分）" },
+                    { key: "writing", name: "写作题" },
                   ].map(({ key, name }) => {
                     const settings = config.questionTypes[key as keyof TestConfig["questionTypes"]]
                     return (

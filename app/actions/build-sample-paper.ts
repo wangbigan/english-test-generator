@@ -10,6 +10,7 @@ interface TestConfig {
     reading: { count: number; score: number }
     writing: { count: number; score: number }
     listening: { count: number; score: number }
+    trueFalse: { count: number; score: number }
   }
 }
 
@@ -180,7 +181,58 @@ We have a lot of fun together!
     })
   }
 
-  // 5. 写作题（最后部分）
+  // 5. 判断题
+  if (config.questionTypes.trueFalse.count > 0) {
+    const questions = []
+    const sampleQuestions = [
+      {
+        question: "The sun rises in the east.",
+        answer: "对",
+        explanation: "太阳从东方升起，这是正确的，所以答案是'对'。",
+      },
+      {
+        question: "There are 8 days in a week.",
+        answer: "错",
+        explanation: "一周有7天，不是8天，所以答案是'错'。",
+      },
+      {
+        question: "Cats can fly.",
+        answer: "错",
+        explanation: "猫不会飞，所以答案是'错'。",
+      },
+      {
+        question: "We use our eyes to see.",
+        answer: "对",
+        explanation: "我们用眼睛看东西，这是正确的，所以答案是'对'。",
+      },
+    ]
+
+    for (let i = 1; i <= config.questionTypes.trueFalse.count; i++) {
+      const sampleIndex = (i - 1) % sampleQuestions.length
+      const sample = sampleQuestions[sampleIndex]
+      const question = {
+        id: questionId,
+        question: `${sample.question} (示例判断题 ${i})`,
+        answer: sample.answer,
+        explanation: sample.explanation,
+        points: config.questionTypes.trueFalse.score,
+      }
+      questions.push(question)
+      answerKey.push({
+        id: questionId,
+        answer: question.answer,
+        explanation: question.explanation,
+      })
+      questionId++
+    }
+    sections.push({
+      type: "trueFalse",
+      title: "五、判断题",
+      questions,
+    })
+  }
+
+  // 6. 写作题（最后部分）
   if (config.questionTypes.writing.count > 0) {
     const questions = []
     for (let i = 1; i <= config.questionTypes.writing.count; i++) {
@@ -203,7 +255,7 @@ We have a lot of fun together!
     }
     sections.push({
       type: "writing",
-      title: "五、写作题",
+      title: "六、写作题",
       questions,
     })
   }
