@@ -124,6 +124,7 @@ export default function HomePage() {
   const [rawResponseText, setRawResponseText] = useState<string>("")
   const [promptOpen, setPromptOpen] = useState<boolean>(false)
   const [showPromptPanel, setShowPromptPanel] = useState(false)
+  const [generationError, setGenerationError] = useState<string | null>(null)
 
   const handleConfigChange = (key: string, value: any) => {
     setConfig((prev) => ({ ...prev, [key]: value }))
@@ -151,6 +152,11 @@ export default function HomePage() {
     return Object.values(questionTypes).reduce((total, type) => total + type.count * type.score, 0)
   }
 
+  const calculateTotalQuestions = () => {
+    const { questionTypes } = config
+    return Object.values(questionTypes).reduce((total, type) => total + type.count, 0)
+  }
+
   const handleGenerate = async () => {
     if (!config.grade || !config.difficulty || !config.theme) {
       alert("请填写完整的基本信息")
@@ -173,18 +179,33 @@ export default function HomePage() {
     // 立即生成prompt并展示
     const prompt = buildPrompt(configWithCorrectScore, promptConfig || undefined)
     setPromptText(prompt)
-    setPromptOpen(true)
     setRawResponseText("") // 清空上一次的原始结果
     setShowPromptPanel(true) // 生成试卷时显示折叠面板
+    setGenerationError(null) // 清空之前的错误状态
     setIsGenerating(true)
     try {
       const result = await generateTestPaper(configWithCorrectScore, openaiConfig, promptConfig || undefined)
-      setGeneratedTest(result.test)
+      
+      // 检查是否有返回内容
+      if (!result.rawResponse && !result.test) {
+        setGenerationError("no_content")
+        setGeneratedTest(null)
+      } else if (!result.test || !result.test.sections || result.test.sections.length === 0) {
+        // 检查返回的试卷结构是否异常
+        setGenerationError("invalid_structure")
+        setGeneratedTest(null)
+      } else {
+        // 成功生成试卷
+        setGeneratedTest(result.test)
+        setGenerationError(null)
+      }
+      
       setRawResponseText(result.rawResponse || "")
       setActiveTab("preview")
     } catch (error) {
       console.error("生成试卷失败:", error)
-      alert("生成试卷失败，请重试")
+      setGenerationError("generation_failed")
+      setGeneratedTest(null)
     } finally {
       setIsGenerating(false)
     }
@@ -665,7 +686,7 @@ export default function HomePage() {
               <Card>
                 <CardHeader>
                   <CardTitle>题型配置</CardTitle>
-                  <CardDescription>设置各题型的数量和分值（按出题顺序排列）</CardDescription>
+                  <CardDescription>设置各题型的数量和分值（总数建议不超过50题，否则可能会超出大模型输出长度限制）</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {/* 按照题目顺序重新排列 */}
@@ -721,10 +742,15 @@ export default function HomePage() {
                   })}
 
                   <div className="pt-4 border-t">
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="font-medium">题目总数</span>
+                      <Badge variant="outline" className="text-lg px-3 py-1">{calculateTotalQuestions()}题</Badge>
+                    </div>
                     <div className="flex justify-between items-center">
                       <span className="font-medium">总分</span>
                       <Badge className="text-lg px-3 py-1">{calculateTotalScore()}分</Badge>
                     </div>
+                    
                   </div>
                 </CardContent>
               </Card>
@@ -751,7 +777,39 @@ export default function HomePage() {
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <FileText className="w-16 h-16 text-gray-400 mb-4" />
-                  <p className="text-gray-500">请先配置并生成试卷</p>
+                  {generationError === "no_content" ? (
+                    <div className="text-center">
+                      <p className="text-red-500 mb-2">大模型未返回结果</p>
+                      <button 
+                        onClick={() => setActiveTab("config")} 
+                        className="text-blue-500 hover:text-blue-700 underline cursor-pointer"
+                      >
+                        请重新生成
+                      </button>
+                    </div>
+                  ) : generationError === "invalid_structure" ? (
+                    <div className="text-center">
+                      <p className="text-red-500 mb-2">大模型返回结果异常</p>
+                      <button 
+                        onClick={() => setActiveTab("config")} 
+                        className="text-blue-500 hover:text-blue-700 underline cursor-pointer"
+                      >
+                        请重新生成
+                      </button>
+                    </div>
+                  ) : generationError === "generation_failed" ? (
+                    <div className="text-center">
+                      <p className="text-red-500 mb-2">生成试卷失败</p>
+                      <button 
+                        onClick={() => setActiveTab("config")} 
+                        className="text-blue-500 hover:text-blue-700 underline cursor-pointer"
+                      >
+                        请重新生成
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-gray-500">请先配置并生成试卷</p>
+                  )}
                 </CardContent>
               </Card>
             )}

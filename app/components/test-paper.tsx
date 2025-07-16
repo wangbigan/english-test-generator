@@ -116,8 +116,7 @@ export function TestPaper({ test }: TestPaperProps) {
                               {question.options.map((option, optionIndex) => {
                                 // 清理选项内容，移除可能的重复标签
                                 const cleanOption = option
-                                  .replace(/^[A-D]\.?\s*/, "") // 移除开头的 A. B. C. D. 标签
-                                  .replace(/^[A-D]\s+/, "") // 移除开头的 A B C D 标签（无点号）
+                                  .replace(/^[A-D][.\s]+/, "") // 移除开头的 A. B. C. D. 标签
                                   .trim()
 
                                 return (
@@ -172,11 +171,15 @@ export function TestPaper({ test }: TestPaperProps) {
                           {section.type === "trueFalse" && (
                             <div className="mt-3">
                               <div className="flex items-center gap-4">
-                                <span className="text-sm text-gray-500">请在括号内填写"对"或"错"：</span>
-                                <div className="flex items-center gap-2">
-                                  <span>（</span>
-                                  <div className="border-b border-gray-300 w-12 h-6"></div>
-                                  <span>）</span>
+                                <div className="flex items-center gap-6">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-4 h-4 border border-gray-300 rounded"></div>
+                                    <span className="text-sm">True</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-4 h-4 border border-gray-300 rounded"></div>
+                                    <span className="text-sm">False</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>

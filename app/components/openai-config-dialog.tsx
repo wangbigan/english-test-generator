@@ -32,7 +32,7 @@ interface OpenAIConfigDialogProps {
 export function OpenAIConfigDialog({ open, onOpenChange, config, onConfigSave }: OpenAIConfigDialogProps) {
   const [formData, setFormData] = useState<OpenAIConfig>({
     apiKey: config?.apiKey || "",
-    baseUrl: config?.baseUrl || "https://api.deepseek.com",
+    baseUrl: config?.baseUrl || "https://api.deepseek.com/v1",
     model: config?.model || "deepseek-chat",
   })
   const [showApiKey, setShowApiKey] = useState(false)
@@ -42,11 +42,34 @@ export function OpenAIConfigDialog({ open, onOpenChange, config, onConfigSave }:
     if (config) {
       setFormData({
         apiKey: config.apiKey || "",
-        baseUrl: config.baseUrl || "https://api.deepseek.com",
+        baseUrl: config.baseUrl || "https://api.deepseek.com/v1",
         model: config.model || "deepseek-chat",
       })
     }
   }, [config])
+
+  // 根据模型自动设置Base URL
+  const getBaseUrlForModel = (model: string): string => {
+    if (model.startsWith('deepseek')) {
+      return 'https://api.deepseek.com/v1'
+    } else if (model.startsWith('moonshot') || model.startsWith('kimi')) {
+      return 'https://api.moonshot.cn/v1'
+    } else if (model.startsWith('Doubao')) {
+      return 'https://ark.cn-beijing.volces.com/api/v3/chat/completions'
+    } else if (model.startsWith('gpt')) {
+      return 'https://api.openai.com/v1'
+    }
+    return formData.baseUrl
+  }
+
+  const handleModelChange = (model: string) => {
+    const newBaseUrl = getBaseUrlForModel(model)
+    setFormData({ 
+      ...formData, 
+      model, 
+      baseUrl: newBaseUrl 
+    })
+  }
 
   const handleSave = async () => {
     if (!formData.apiKey.trim()) {
@@ -85,7 +108,7 @@ export function OpenAIConfigDialog({ open, onOpenChange, config, onConfigSave }:
   const handleReset = () => {
     setFormData({
       apiKey: "",
-      baseUrl: "https://api.deepseek.com",
+      baseUrl: "https://api.deepseek.com/v1",
       model: "deepseek-chat",
     })
   }
@@ -143,25 +166,19 @@ export function OpenAIConfigDialog({ open, onOpenChange, config, onConfigSave }:
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="baseUrl">Base URL</Label>
-            <Input
-              id="baseUrl"
-              placeholder="https://api.openai.com/v1"
-              value={formData.baseUrl}
-              onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
-            />
-            <p className="text-xs text-gray-500">使用官方API或兼容的第三方服务地址</p>
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="model">模型</Label>
-            <Select value={formData.model} onValueChange={(value) => setFormData({ ...formData, model: value })}>
+            <Select value={formData.model} onValueChange={handleModelChange}>
               <SelectTrigger>
                 <SelectValue placeholder="选择模型" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="deepseek-chat">DeepSeek Chat (推荐)</SelectItem>
-                <SelectItem value="deepseek-reasoner">DeepSeek Reasoner</SelectItem>
+                <SelectItem value="deepseek-chat">DeepSeek-Chat (推荐)</SelectItem>
+                <SelectItem value="deepseek-reasoner">DeepSeek-Reasoner</SelectItem>
+                <SelectItem value="moonshot-v1-128k">Kimi-Moonshot-v1-128k</SelectItem>
+                {/* <SelectItem value="kimi-k2-0711-preview">Kimi-K2-0711-Preview</SelectItem> */}
+                {/* <SelectItem value="Doubao-Seed-1.6">豆包-Seed-1.6</SelectItem>
+                <SelectItem value="Doubao-Seed-1.6-thinking">豆包-Seed-1.6-thinking</SelectItem>
+                <SelectItem value="Doubao-1.5-pro-32k">豆包-1.5-pro-32k</SelectItem> */}
                 <SelectItem value="gpt-4o">GPT-4o</SelectItem>
                 <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
                 <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
@@ -169,7 +186,18 @@ export function OpenAIConfigDialog({ open, onOpenChange, config, onConfigSave }:
                 <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-gray-500">推荐使用DeepSeek Chat获得最佳试卷生成效果</p>
+            <p className="text-xs text-gray-500">选择模型会自动设置对应的Base URL</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="baseUrl">Base URL</Label>
+            <Input
+              id="baseUrl"
+              placeholder="https://api.openai.com/v1"
+              value={formData.baseUrl}
+              onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
+            />
+            <p className="text-xs text-gray-500">会根据选择的模型自动填充，也可手动修改</p>
           </div>
         </div>
 

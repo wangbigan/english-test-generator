@@ -37,7 +37,8 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
     if (!openaiConfig?.apiKey?.trim()) {
       console.warn("API Key missing – falling back to local sample paper")
       // 构建prompt
-      const prompt = buildPrompt(config, promptConfig)
+      const { systemMessage, userMessage } = buildMessages(config, promptConfig)
+      const prompt = systemMessage + "\n\n" + userMessage
       return { test: buildSamplePaper(config), prompt, rawResponse: undefined }
     }
 
@@ -49,22 +50,43 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
         baseURL: openaiConfig.baseUrl || "https://api.deepseek.com/v1",
       })
     } else {
+      // 对于Kimi、GPT等其他模型，都使用OpenAI兼容格式
       provider = createOpenAI({
         apiKey: openaiConfig.apiKey,
         baseURL: openaiConfig.baseUrl || "https://api.openai.com/v1",
       })
     }
 
-    // 构建prompt
-    const prompt = buildPrompt(config, promptConfig)
+    // 构建system和user消息
+    const { systemMessage, userMessage } = buildMessages(config, promptConfig)
 
-    const { text } = await generateText({
+    // 根据模型类型设置不同的参数
+    let generateParams: any = {
       model: provider(openaiConfig.model),
-      prompt,
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: userMessage }
+      ],
       temperature: 0.7,
-    })
+    }
+
+    // 为不同模型设置合适的token限制
+    if (openaiConfig.model.startsWith("kimi") || openaiConfig.model.startsWith("moonshot") || openaiConfig.model.startsWith("Doubao")) {
+      // Kimi和豆包模型使用max_tokens而不是maxTokens
+      generateParams.max_tokens = 8000
+    } else {
+      generateParams.maxTokens = 8000
+    }
+
+    // 添加调试信息
+    console.log('[API Call] Model:', openaiConfig.model)
+    console.log('[API Call] BaseURL:', openaiConfig.baseUrl)
+    console.log('[API Call] Params:', JSON.stringify(generateParams, null, 2))
+
+    const { text } = await generateText(generateParams)
 
     const content = text
+    console.log('[API Response] Success, content length:', content?.length || 0)
 
     if (!content) {
       throw new Error("No content received from API.")
@@ -84,7 +106,7 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
       // 日志：每次解析前输出内容
       console.log("[AI Parse Input]", cleanedText);
       const result = safeJsonParse(cleanedText);
-      return { test: result, prompt, rawResponse: cleanedText }
+      return { test: result, prompt: systemMessage + "\n\n" + userMessage, rawResponse: cleanedText }
     } catch (error) {
       console.error("Failed to parse JSON:", error)
       console.error("Raw response from API:", cleanedText)
@@ -92,18 +114,60 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
     }
   } catch (error: any) {
     console.error("Error generating test paper:", error)
+    console.error("Error details:", {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      model: openaiConfig.model,
+      baseUrl: openaiConfig.baseUrl
+    })
+
+    // 特殊处理网络错误
+    if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
+      console.error('Network error detected. This might be due to:')
+      console.error('1. Incorrect Base URL for the model')
+      console.error('2. API endpoint not accessible')
+      console.error('3. CORS issues')
+      console.error('4. Invalid API key')
+      
+      if (openaiConfig.model.startsWith('kimi') || openaiConfig.model.startsWith('moonshot')) {
+        console.error('For Kimi models, ensure Base URL is: https://api.moonshot.cn/v1')
+      } else if (openaiConfig.model.startsWith('Doubao')) {
+        console.error('For Doubao models, ensure Base URL is: https://ark.cn-beijing.volces.com/api/v3/chat/completions')
+      }
+    }
 
     // 如果API调用失败，返回示例试卷而不是抛出错误
     console.warn("API call failed, falling back to sample paper")
-    const prompt = buildPrompt(config, promptConfig)
+    const { systemMessage, userMessage } = buildMessages(config, promptConfig)
+    const prompt = systemMessage + "\n\n" + userMessage
     return { test: buildSamplePaper(config), prompt, rawResponse: undefined }
   }
 }
 
-export function buildPrompt(config: TestConfig, promptConfig?: PromptConfig): string {
-  // 使用getFinalPromptTemplate函数获取完整的prompt模板（包含JSON示例）
-  const template = getFinalPromptTemplate(promptConfig || null)
+export function buildMessages(config: TestConfig, promptConfig?: PromptConfig): { systemMessage: string; userMessage: string } {
+  // System消息：JSON格式限定和风险控制
+  const systemMessage = `你是一名资深的小学英语老师，擅长按照配置和要求生成高质量的英语试卷或题目。请严格遵循以下要求：
 
+## 输出格式要求
+- 必须严格按照JSON示例格式输出，不要包含任何其他内容
+- 务必确保在token长度限制内输出完整JSON结构，且语法正确。
+- 在满足上述要求的前提下，尽可能保证生成的题目数量最大化满足各题型要求，如实在不能满足，在json的questionNumber字段附加注视说明
+
+## 内容要求：
+- 题目设计必须确保正确答案只有一个，且不能出现二义性
+- 材料、题干和选项中涉及数字部分都尽可能用英文单词，避免用数字表示
+
+## 内容安全要求
+- 生成的内容必须适合小学生，积极健康
+- 不得包含任何政治敏感、宗教争议、暴力、色情等不当内容
+- 避免涉及种族、性别、地域等歧视性内容
+- 确保所有题目内容符合教育规范和社会主义核心价值观
+`
+
+  // 获取prompt模板（包含JSON示例）
+  const template = getFinalPromptTemplate(promptConfig || null)
+  
   // 准备变量替换的数据
   const variables = {
     grade: getGradeName(config.grade),
@@ -111,6 +175,14 @@ export function buildPrompt(config: TestConfig, promptConfig?: PromptConfig): st
     theme: config.theme,
     knowledgePoints: config.knowledgePoints,
     totalScore: config.totalScore.toString(),
+    totalQuestions: (
+      config.questionTypes.listening.count +
+      config.questionTypes.multipleChoice.count +
+      config.questionTypes.fillInBlank.count +
+      config.questionTypes.reading.count +
+      config.questionTypes.writing.count +
+      config.questionTypes.trueFalse.count
+    ).toString(),
 
     // 听力题
     listeningCount: config.questionTypes.listening.count.toString(),
@@ -145,14 +217,19 @@ export function buildPrompt(config: TestConfig, promptConfig?: PromptConfig): st
     trueFalseTotalScore: (config.questionTypes.trueFalse.count * config.questionTypes.trueFalse.score).toString(),
   }
 
-  // 替换模板中的变量
-  let finalPrompt = template
+  // 替换Prompt模板中的变量
+  let userMessage = template
   Object.entries(variables).forEach(([key, value]) => {
     const regex = new RegExp(`{{${key}}}`, "g")
-    finalPrompt = finalPrompt.replace(regex, value)
+    userMessage = userMessage.replace(regex, value)
   })
 
-  return finalPrompt
+  return { systemMessage, userMessage }
+}
+
+export function buildPrompt(config: TestConfig, promptConfig?: PromptConfig): string {
+  const { systemMessage, userMessage } = buildMessages(config, promptConfig)
+  return systemMessage + "\n\n" + userMessage
 }
 
 // 辅助函数

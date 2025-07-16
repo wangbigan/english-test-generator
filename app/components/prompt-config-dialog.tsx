@@ -39,7 +39,7 @@ interface PromptConfigDialogProps {
   onConfigSave: (config: PromptConfig) => void
 }
 
-const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json
+const JSON_EXAMPLE = `\n\nJSON示例：\n\n\`\`\`json
   {
     "title": "一年级英语中等测试",
     "subtitle": "Unit 1-3",
@@ -58,6 +58,7 @@ const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json
             "answer": "C",
             "options": ["Jack", "Mike", "Tom"],
             "explanation": "从听力材料中可以听到'Hello, my name is Tom'，所以答案是Tom。",
+            "knowledgePoint": "介绍常用语",
             "points": 2
           }
         ]
@@ -73,6 +74,7 @@ const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json
             "options": ["My name is Tom", "I am a student", "Nice to meet you"],
             "answer": "A",
             "explanation": "询问姓名的标准回答是'My name is...'，所以选择A。",
+            "knowledgePoint": "介绍常用语",
             "points": 2
           }
         ]
@@ -87,6 +89,7 @@ const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json
             "question": "I ___ a student.",
             "answer": "am",
             "explanation": "主语是I，be动词应该用am。",
+            "knowledgePoint": "介绍常用语",
             "points": 2
           }
         ]
@@ -98,9 +101,10 @@ const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json
         "questions": [
           {
             "id": 4,
-            "question": "I like apples.",
-            "answer": "true",
-            "explanation": "从阅读材料中可以找到答案。",
+            "question": "The sky is blue.",
+            "answer": "True",
+            "explanation": "天空是蓝色的，所以答案是True。",
+            "knowledgePoint": "表示颜色的单词",
             "points": 2
           }
         ]
@@ -117,6 +121,7 @@ const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json
             "options": ["I like apples", "I like oranges", "I like pears"],
             "answer": "A",
             "explanation": "从阅读材料中可以找到答案。",
+            "knowledgePoint": "表示喜欢的东西",
             "points": 2
           }
         ]
@@ -130,6 +135,7 @@ const JSON_EXAMPLE = `\n\n请严格按照如下JSON格式输出：\n\n\`\`\`json
             "id": 6,
             "question": "Write a short essay about your favorite color.",
             "explanation": "评分标准：\n1. 内容完整，符合要求\n2. 语法正确，表达清晰\n3. 格式规范，无错别字\n4. 同时满足上述3点要求的，每个句子得一分",
+            "knowledgePoint": "表示颜色的单词",
             "points": 10
           }
         ]
@@ -166,7 +172,8 @@ export const DEFAULT_TEMPLATES: PromptTemplate[] = [
 4. 选择题必须有3个选项，选项内容不要包含A、B、C标签，只写纯内容
 5. 除写作题以外，其他题目都需要标准答案(answer)和详细解析(explanation)
 6. 写作题不需要答案(answer)，解析(explanation)中写评分标准
-7. 判断题为判断对错，答案为“对”或“错”，并给出解析。
+7. 判断题为判断对错，答案为“True”或“False”，并给出解析。
+8. 严格按照每个题型的数量生成相应数量的题型
 
 试卷结构: 
 - 严格按照json格式输出，json不要包裹引号，不要输出其他内容。`,
@@ -188,6 +195,101 @@ export const DEFAULT_TEMPLATES: PromptTemplate[] = [
       "writingScore",
       "trueFalseCount",
       "trueFalseScore",
+    ],
+  },
+  {
+    id: "exam_focused",
+    name: "考试导向模板",
+    description: "严格按照考试标准设计，适合期中期末等正式考试",
+    template: `请你根据以下要求生成一份小学英语试卷：
+
+# 试卷元数据 (metadata)
+## 年级 (grade): {{grade}} 
+## 难度级别 (difficulty): {{difficulty}}  
+## 主题 (theme): {{theme}}
+## 知识点 (knowledgePoints): {{knowledgePoints}}
+## 总分 (totalScore): {{totalScore}}
+
+# 题型配置
+1. 听力题 (listening): 
+   - 数量: {{listeningCount}}
+   - 每题分值: {{listeningScore}}
+   - 题型 (listeningType): {{ "选择/填空/匹配" }} 
+   
+2. 选择题 (multipleChoice):
+   - 数量: {{multipleChoiceCount}}
+   - 每题分值: {{multipleChoiceScore}}
+   - 选项要求: 3个选项（不包含A/B/C标签）
+
+3. 填空题 (fillInBlank):
+   - 数量: {{fillInBlankCount}}
+   - 每题分值: {{fillInBlankScore}}
+   - 类型: {{ "单词/短语/句子" }}
+
+4. 判断题 (trueFalse):
+   - 数量: {{trueFalseCount}}
+   - 每题分值: {{trueFalseScore}}
+
+5. 阅读理解 (reading):
+   - 数量: {{readingCount}}
+   - 每题分值: {{readingScore}}
+   - 结构要求:
+     - 文本长度: {{ "50-80词" if grade<=2 else "100-150词" if grade<=4 else "200-250词" }}
+     - 题目类型: {{ ["选择题","判断题"] }}  # 至少包含两种题型
+
+6. 写作题 (writing):
+   - 数量: {{writingCount}}
+   - 每题分值: {{writingScore}}
+
+# 核心规则
+1. **知识点覆盖**：
+   - 每个知识点至少分配 1 道题，1道题可以覆盖多个知识点。
+   - 题目必须明确标注考核知识点字段
+
+2. **难度控制**：
+   | 难度等级 | 知识点中难点知识占比 | 
+   |---------|-------------------|
+   | 低难度  | <=5%     |
+   | 中等难度  | 5%-10%   |
+   | 高难度  | 10%-20%  |
+
+3. **听力题规范**：
+   - 必须生成听力材料 (material)
+   - 题目必须基于听力材料
+   - 支持题型：选择题/填空题/图片匹配
+
+4. **答案解析要求**：
+   - 写作题：提供评分标准，比如：
+      1. 内容完整，符合要求
+      2. 语法正确，表达清晰
+      3. 格式规范，无错别字
+      4. 同时满足上述3点要求的，每个句子得一分
+   - 其他题：提供答案和解析
+
+5. **题目生成逻辑**：
+   - 题目数量严格按照题型配置中的数量要求生成
+   - 题目不能重复
+   - 确保题目的难易度与配置的难易度一致
+   - 选项设计：错误选项必须基于常见学习误区
+`,
+    variables: [
+      "grade",
+      "difficulty",
+      "theme",
+      "knowledgePoints",
+      "totalScore",
+      "listeningCount",
+      "listeningTotalScore",
+      "multipleChoiceCount",
+      "multipleChoiceTotalScore",
+      "fillInBlankCount",
+      "fillInBlankTotalScore",
+      "readingCount",
+      "readingTotalScore",
+      "writingCount",
+      "writingTotalScore",
+      "trueFalseCount",
+      "trueFalseTotalScore",
     ],
   },
   {
@@ -322,65 +424,6 @@ export const DEFAULT_TEMPLATES: PromptTemplate[] = [
       "writingScore",
       "trueFalseCount",
       "trueFalseScore",
-    ],
-  },
-  {
-    id: "exam_focused",
-    name: "考试导向模板",
-    description: "严格按照考试标准设计，适合期中期末等正式考试",
-    template: `请严格按照小学英语考试标准，生成一份规范的英语试卷：
-
-考试信息：
-- 年级：{{grade}}
-- 难度：{{difficulty}}
-- 考试范围：{{theme}}
-- 重点内容：{{knowledgePoints}}
-- 总分：{{totalScore}}分
-- 考试时间：60分钟
-
-题型及分值分布：
-一、听力部分 ({{listeningCount}}题，共{{listeningTotalScore}}分)
-二、笔试部分：
-   1. 单项选择题 ({{multipleChoiceCount}}题，共{{multipleChoiceTotalScore}}分)
-   2. 完形填空题 ({{fillInBlankCount}}题，共{{fillInBlankTotalScore}}分)
-   3. 阅读理解题 ({{readingCount}}题，共{{readingTotalScore}}分)
-   4. 书面表达题 ({{writingCount}}题，共{{writingTotalScore}}分)
-
-命题要求：
-1. 严格按照课程标准和教学大纲要求
-2. 题目难度分布：基础题70%，中等题20%，提高题10%
-3. 知识点覆盖要全面均衡
-4. 语言材料要真实自然
-5. 避免偏题、怪题和超纲题
-6. 答案要准确无误，解析要详细清楚
-
-评分标准：
-- 听力题：理解准确，答案正确
-- 选择题：选项唯一，逻辑清晰
-- 填空题：语法正确，拼写准确
-- 阅读题：理解深入，推理合理
-- 写作题：内容完整，语言流畅，格式规范
-
-## 输出格式
-请严格按照JSON示例格式输出，不要包裹引号，不要输出其他内容。`,
-    variables: [
-      "grade",
-      "difficulty",
-      "theme",
-      "knowledgePoints",
-      "totalScore",
-      "listeningCount",
-      "listeningTotalScore",
-      "multipleChoiceCount",
-      "multipleChoiceTotalScore",
-      "fillInBlankCount",
-      "fillInBlankTotalScore",
-      "readingCount",
-      "readingTotalScore",
-      "writingCount",
-      "writingTotalScore",
-      "trueFalseCount",
-      "trueFalseTotalScore",
     ],
   },
 ]

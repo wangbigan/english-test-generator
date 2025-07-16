@@ -224,7 +224,7 @@ export function FileUpload({ onKnowledgePointsExtracted, openaiConfig }: FileUpl
               <div className="space-y-3">
                 <div className="bg-gray-50 p-3 rounded text-xs">
                   <div className="flex justify-between items-center mb-2">
-                    <p className="text-gray-600 font-medium">提取的文本内容：</p>
+                    <p className="text-gray-600 font-medium">文档内容：</p>
                     <div className="flex items-center gap-2">
                       <span className="text-gray-500 text-xs">
                         {extractedText.length}/30,000 字符
