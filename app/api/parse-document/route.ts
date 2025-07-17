@@ -22,10 +22,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "不支持的文件格式" }, { status: 400 })
     }
 
-    // 检查文件大小（100MB）
-    const maxSize = 100 * 1024 * 1024
+    // 检查文件大小（4MB）
+    const maxSize = 4 * 1024 * 1024
     if (file.size > maxSize) {
-      return NextResponse.json({ error: "文件大小超过100MB限制" }, { status: 400 })
+      return NextResponse.json({ error: "文件大小超过4MB限制" }, { status: 400 })
     }
 
     let result: { content: string; metadata: any; warning?: string }
@@ -115,7 +115,12 @@ export async function POST(request: NextRequest) {
 const parseDocx = async (buffer: ArrayBuffer): Promise<{ content: string; metadata: any }> => {
   try {
     const mammoth = await import("mammoth")
-    const result = await mammoth.extractRawText({ arrayBuffer: buffer })
+    
+    // 将ArrayBuffer转换为Buffer，mammoth.js更好地支持Buffer
+    const nodeBuffer = Buffer.from(buffer)
+    
+    // 使用buffer参数而不是arrayBuffer
+    const result = await mammoth.extractRawText({ buffer: nodeBuffer })
     const content = result.value
 
     if (result.messages && result.messages.length > 0) {
@@ -145,8 +150,12 @@ const parseDocWithMammoth = async (
 ): Promise<{ content: string; metadata: any; warning?: string }> => {
   try {
     const mammoth = await import("mammoth")
+    
+    // 将ArrayBuffer转换为Buffer，mammoth.js更好地支持Buffer
+    const nodeBuffer = Buffer.from(buffer)
+    
     // 尝试使用mammoth解析DOC文件
-    const result = await mammoth.extractRawText({ arrayBuffer: buffer })
+    const result = await mammoth.extractRawText({ buffer: nodeBuffer })
     let content = result.value
     let warning: string | undefined
 
@@ -190,45 +199,128 @@ const parseDocWithMammoth = async (
   }
 }
 
-// DOC文件备用解析方法
+// DOC文件备用解析方法 - 改进版
 const parseDocFallback = async (buffer: ArrayBuffer): Promise<string> => {
-  // 使用更智能的文本提取算法
   const uint8Array = new Uint8Array(buffer)
-  const textChunks: string[] = []
-  let currentChunk = ""
-
-  for (let i = 0; i < uint8Array.length - 1; i++) {
-    const char = uint8Array[i]
-    const nextChar = uint8Array[i + 1]
-
-    // 检查是否为可打印字符
-    if (char >= 32 && char <= 126) {
-      currentChunk += String.fromCharCode(char)
-    } else if (char === 0 && currentChunk.length > 3) {
-      // 遇到空字符且当前块有内容时，保存块
-      textChunks.push(currentChunk.trim())
-      currentChunk = ""
-    } else if (char === 10 || char === 13) {
-      currentChunk += "\n"
+  const textSegments: string[] = []
+  
+  // DOC文件的文本通常存储在特定的数据结构中
+  // 我们需要寻找连续的可读文本段落
+  
+  let i = 0
+  while (i < uint8Array.length - 10) {
+    // 寻找文本段落的开始
+    let textStart = -1
+    let consecutiveReadable = 0
+    
+    // 检查是否有连续的可读字符
+    for (let j = i; j < Math.min(i + 100, uint8Array.length); j++) {
+      const char = uint8Array[j]
+      
+      if ((char >= 32 && char <= 126) || // ASCII可打印字符
+          (char >= 128 && char <= 255) || // 扩展ASCII
+          char === 9 || char === 10 || char === 13) { // 制表符、换行符
+        if (textStart === -1) textStart = j
+        consecutiveReadable++
+      } else if (char === 0) {
+        // 空字符可能是文本分隔符，但不重置计数
+        continue
+      } else {
+        // 遇到不可读字符，重置
+        if (consecutiveReadable >= 10) {
+          // 如果已经有足够的可读字符，提取这段文本
+          break
+        }
+        textStart = -1
+        consecutiveReadable = 0
+      }
+    }
+    
+    // 如果找到了足够长的可读文本段
+    if (consecutiveReadable >= 10 && textStart !== -1) {
+      let textEnd = textStart + consecutiveReadable
+      
+      // 扩展文本段，直到遇到大量不可读字符
+      let nonReadableCount = 0
+      while (textEnd < uint8Array.length && nonReadableCount < 5) {
+        const char = uint8Array[textEnd]
+        if ((char >= 32 && char <= 126) || 
+            (char >= 128 && char <= 255) ||
+            char === 9 || char === 10 || char === 13) {
+          nonReadableCount = 0
+        } else if (char === 0) {
+          // 空字符不计入不可读计数
+        } else {
+          nonReadableCount++
+        }
+        textEnd++
+      }
+      
+      // 提取文本段
+      const textBytes = uint8Array.slice(textStart, textEnd - nonReadableCount)
+      let text = ""
+      
+      for (let k = 0; k < textBytes.length; k++) {
+        const char = textBytes[k]
+        if (char >= 32 && char <= 126) {
+          text += String.fromCharCode(char)
+        } else if (char === 9) {
+          text += " "
+        } else if (char === 10 || char === 13) {
+          text += "\n"
+        } else if (char === 0) {
+          // 跳过空字符
+          continue
+        } else if (char >= 128 && char <= 255) {
+          // 尝试处理扩展ASCII字符
+          try {
+            text += String.fromCharCode(char)
+          } catch {
+            // 如果转换失败，跳过
+          }
+        }
+      }
+      
+      // 清理和验证提取的文本
+      text = text.replace(/\s+/g, " ").trim()
+      
+      // 只保留包含有意义内容的文本段
+      if (text.length >= 5 && 
+          /[a-zA-Z\u4e00-\u9fff]/.test(text) && 
+          !text.match(/^[\s\W]*$/)) {
+        textSegments.push(text)
+      }
+      
+      i = textEnd
+    } else {
+      i += 50 // 跳过一段距离继续搜索
     }
   }
-
-  if (currentChunk.trim()) {
-    textChunks.push(currentChunk.trim())
+  
+  // 合并和清理所有文本段
+  let finalText = textSegments
+    .filter(segment => {
+      // 过滤掉过短或无意义的段落
+      return segment.length >= 3 && 
+             /[a-zA-Z\u4e00-\u9fff]/.test(segment) &&
+             !segment.match(/^[\s\W\d]*$/) && // 不是纯符号或数字
+             !segment.match(/^[a-zA-Z]{1,2}$/) // 不是单个或两个字母
+    })
+    .map(segment => {
+      // 进一步清理每个段落
+      return segment
+        .replace(/[\x00-\x1F\x7F-\x9F]/g, "") // 移除控制字符
+        .replace(/\s+/g, " ") // 合并空白字符
+        .trim()
+    })
+    .filter(segment => segment.length >= 3)
+    .join("\n\n")
+  
+  if (!finalText || finalText.length < 10) {
+    throw new Error("无法从DOC文件中提取有效文本内容，建议转换为DOCX格式")
   }
-
-  // 过滤和清理文本块
-  const cleanedChunks = textChunks
-    .filter((chunk) => chunk.length > 2 && /[a-zA-Z\u4e00-\u9fff]/.test(chunk))
-    .map((chunk) => chunk.replace(/\s+/g, " ").trim())
-
-  const content = cleanedChunks.join("\n\n")
-
-  if (!content || content.length < 10) {
-    throw new Error("无法从DOC文件中提取有效文本内容")
-  }
-
-  return content
+  
+  return finalText
 }
 
 // 解析PPTX文件 - 使用JSZip

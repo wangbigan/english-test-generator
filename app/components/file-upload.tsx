@@ -48,10 +48,10 @@ export function FileUpload({ onKnowledgePointsExtracted, openaiConfig }: FileUpl
       return
     }
 
-    // 检查文件大小（限制为100MB）
-    const maxSize = 100 * 1024 * 1024 // 100MB
+    // 检查文件大小（限制为4MB）
+    const maxSize = 4 * 1024 * 1024 // 4MB
     if (file.size > maxSize) {
-      alert(`文件大小不能超过100MB，当前文件大小：${formatFileSize(file.size)}`)
+      alert(`文件大小不能超过4MB，当前文件大小：${formatFileSize(file.size)}`)
       return
     }
 
@@ -194,8 +194,9 @@ export function FileUpload({ onKnowledgePointsExtracted, openaiConfig }: FileUpl
                 <Upload className="w-8 h-8 text-gray-400" />
               )}
               <p className="text-sm text-gray-600">{isUploading ? "正在处理文件..." : "点击上传文档"}</p>
-              <p className="text-xs text-gray-500">请上传支持的文件格式：Word文档(.docx, .doc)、PowerPoint(.pptx, .ppt)、PDF(.pdf)或文本文件(.txt)</p>
-              <p className="text-xs text-gray-400">文件大小限制：100MB，提取文本限制：30K字符</p>
+              <p className="text-xs text-gray-500">请上传支持的文件格式：Word文档(.docx)、PowerPoint(.pptx, .ppt)、PDF(.pdf)或文本文件(.txt)</p>
+              <p className="text-xs text-gray-500">如果是doc格式的Word文档，建议另存为docx格式，否则解析结果可能乱码</p>
+              <p className="text-xs text-gray-400">文件大小限制：4MB，提取文本限制：30K字符</p>
             </div>
           </label>
         </div>
