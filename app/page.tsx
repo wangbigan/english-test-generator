@@ -602,8 +602,8 @@ export default function HomePage() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="config" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <TabsContent value="config" className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* 基本设置 */}
               <Card>
                 <CardHeader>
@@ -671,7 +671,7 @@ export default function HomePage() {
                         <Upload className="w-4 h-4" />
                         或上传文档自动提取知识点
                       </Label>
-                      <div className="mt-2">
+                      <div className="mt-1">
                         <FileUpload
                           onKnowledgePointsExtracted={handleKnowledgePointsExtracted}
                           openaiConfig={openaiConfig}
@@ -688,7 +688,7 @@ export default function HomePage() {
                   <CardTitle>题型配置</CardTitle>
                   <CardDescription>设置各题型的数量和分值（总数建议不超过50题，否则可能会超出大模型输出长度限制）</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-4">
                   {/* 按照题目顺序重新排列 */}
                   {[
                     { key: "listening", name: "听力题" },
@@ -700,7 +700,7 @@ export default function HomePage() {
                   ].map(({ key, name }) => {
                     const settings = config.questionTypes[key as keyof TestConfig["questionTypes"]]
                     return (
-                      <div key={key} className="space-y-3">
+                      <div key={key} className="space-y-2">
                         <div className="flex items-center justify-between">
                           <Label className="text-sm font-medium">{name}</Label>
                           <Badge variant="outline">
@@ -709,7 +709,7 @@ export default function HomePage() {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <Label className="text-xs text-gray-500">题目数量</Label>
+                            {/* <Label className="text-xs text-gray-500">题目数量</Label> */}
                             <Slider
                               value={[settings.count]}
                               onValueChange={([value]) =>
@@ -718,21 +718,21 @@ export default function HomePage() {
                               max={key === "writing" ? 3 : 20}
                               min={0}
                               step={1}
-                              className="mt-2"
+                              className="mt-1"
                             />
                             <div className="text-xs text-gray-500 mt-1">{settings.count}题</div>
                           </div>
                           <div>
-                            <Label className="text-xs text-gray-500">每题分值</Label>
+                            {/* <Label className="text-xs text-gray-500">每题分值</Label> */}
                             <Slider
                               value={[settings.score]}
                               onValueChange={([value]) =>
                                 handleQuestionTypeChange(key as keyof TestConfig["questionTypes"], "score", value)
                               }
-                              max={key === "writing" ? 30 : 20}
+                              max={key === "writing" ? 20 : 10}
                               min={1}
                               step={1}
-                              className="mt-2"
+                              className="mt-1"
                             />
                             <div className="text-xs text-gray-500 mt-1">{settings.score}分/题</div>
                           </div>
@@ -741,16 +741,15 @@ export default function HomePage() {
                     )
                   })}
 
-                  <div className="pt-4 border-t">
-                    <div className="flex justify-between items-center mt-2">
+                  <div className="pt-3 border-t">
+                    <div className="flex justify-between items-center mt-1">
                       <span className="font-medium">题目总数</span>
                       <Badge variant="outline" className="text-lg px-3 py-1">{calculateTotalQuestions()}题</Badge>
                     </div>
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center mt-1">
                       <span className="font-medium">总分</span>
                       <Badge className="text-lg px-3 py-1">{calculateTotalScore()}分</Badge>
                     </div>
-                    
                   </div>
                 </CardContent>
               </Card>
