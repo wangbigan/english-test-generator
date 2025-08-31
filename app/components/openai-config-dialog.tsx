@@ -16,11 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Info } from "lucide-react"
 
-interface OpenAIConfig {
-  apiKey: string
-  baseUrl: string
-  model: string
-}
+import { OpenAIConfig } from "../types/shared"
 
 interface OpenAIConfigDialogProps {
   open: boolean

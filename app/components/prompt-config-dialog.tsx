@@ -26,11 +26,7 @@ interface PromptTemplate {
   variables: string[]
 }
 
-interface PromptConfig {
-  selectedTemplate: string
-  customTemplate: string
-  variables: Record<string, string>
-}
+import { PromptConfig, getGradeName } from "../types/shared"
 
 interface PromptConfigDialogProps {
   open: boolean
@@ -208,12 +204,9 @@ export const DEFAULT_TEMPLATES: PromptTemplate[] = [
 ## 难度级别 (difficulty): {{difficulty}}  
 ## 主题 (theme): {{theme}}
 ## 知识点 (knowledgePoints): {{knowledgePoints}}
-## 总分 (totalScore): {{totalScore}}
-
 # 题型配置
 1. 听力题 (listening): 
    - 数量: {{listeningCount}}
-   - 每题分值: {{listeningScore}}
    - 题型 (listeningType): {{ "选择/填空/匹配" }} 
    
 2. 选择题 (multipleChoice):
@@ -695,6 +688,349 @@ export function PromptConfigDialog({ open, onOpenChange, config, onConfigSave }:
       </DialogContent>
     </Dialog>
   )
+}
+
+// 题型专用的Prompt模板
+export const QUESTION_TYPE_TEMPLATES = {
+  listening: {
+    template: `请你根据以下要求生成听力题：
+
+# 试卷元数据 (metadata)
+## 年级 (grade): {{grade}} 
+## 难度级别 (difficulty): {{difficulty}}  
+## 主题场景 (theme): {{scenario}}
+## 知识点 (knowledgePoints): {{knowledgePoints}}
+
+# 内容要求
+  - 数量: {{listeningCount}}
+  - 题型 (listeningType): {{ "选择/填空/匹配" }} 
+
+# 核心规则
+1. **知识点覆盖**：
+   - 每个知识点至少分配 1 道题，1道题可以覆盖多个知识点。
+   - 题目必须明确标注考核知识点字段
+
+2. **难度控制**：
+   | 难度等级 | 知识点中难点知识占比 | 
+   |---------|-------------------|
+   | 低难度  | <=5%     |
+   | 中等难度  | 5%-10%   |
+   | 高难度  | 10%-20%  |
+
+3. **听力题规范**：
+   - 必须生成听力材料 (material)
+   - 题目必须基于听力材料
+   - 支持题型：选择题/填空题/图片匹配
+
+4. **答案解析要求**：
+   - 提供答案和解析
+
+5. **题目生成逻辑**：
+   - 题目数量严格按照题型配置中的数量要求生成
+   - 题目不能重复
+   - 确保题目的难易度与配置的难易度一致
+   - 选项设计：错误选项必须基于常见学习误区`,
+    jsonExample: `{
+  "type": "listening",
+  "title": "一、听力题",
+  "listeningMaterial": "Hello, my name is Tom. I am seven years old. I like apples and bananas. My favorite color is blue. I have a pet dog named Max.",
+  "questionNumber": 1,
+  "questions": [
+    {
+      "id": 1,
+      "question": "What is the boy's name?",
+      "answer": "C",
+      "options": ["Jack", "Mike", "Tom"],
+      "explanation": "从听力材料中可以听到'Hello, my name is Tom'，所以答案是Tom。",
+      "knowledgePoint": "介绍常用语"
+    }
+  ]
+}`
+  },
+  multipleChoice: {
+    template: `请你根据以下要求生成选择题：
+
+# 试卷元数据 (metadata)
+## 年级 (grade): {{grade}} 
+## 难度级别 (difficulty): {{difficulty}}  
+## 主题场景 (theme): {{scenario}}
+## 知识点 (knowledgePoints): {{knowledgePoints}}
+
+# 内容要求
+  - 数量: {{multipleChoiceCount}}
+  - 选项要求: 3个选项（不包含A/B/C标签）
+
+# 核心规则
+1. **知识点覆盖**：
+   - 每个知识点至少分配 1 道题，1道题可以覆盖多个知识点。
+   - 题目必须明确标注考核知识点字段
+
+2. **难度控制**：
+   | 难度等级 | 知识点中难点知识占比 | 
+   |---------|-------------------|
+   | 低难度  | <=5%     |
+   | 中等难度  | 5%-10%   |
+   | 高难度  | 10%-20%  |
+
+3. **答案解析要求**：
+   - 提供答案和解析
+
+4. **题目生成逻辑**：
+   - 题目数量严格按照题型配置中的数量要求生成
+   - 题目不能重复
+   - 确保题目的难易度与配置的难易度一致
+   - 选项设计：错误选项必须基于常见学习误区`,
+    jsonExample: `{
+  "type": "multipleChoice",
+  "title": "二、选择题",
+  "questionNumber": 1,
+  "questions": [
+    {
+      "id": 2,
+      "question": "What is your name?",
+      "options": ["My name is Tom", "I am a student", "Nice to meet you"],
+      "answer": "A",
+      "explanation": "询问姓名的标准回答是'My name is...'，所以选择A。",
+      "knowledgePoint": "介绍常用语"
+    }
+  ]
+}`
+  },
+  fillInBlank: {
+    template: `请你根据以下要求生成填空题：
+
+# 试卷元数据 (metadata)
+## 年级 (grade): {{grade}} 
+## 难度级别 (difficulty): {{difficulty}}  
+## 主题场景 (theme): {{scenario}}
+## 知识点 (knowledgePoints): {{knowledgePoints}}
+
+# 内容要求
+  - 数量: {{fillInBlankCount}}
+  - 类型: {{ "单词/短语/句子" }}
+
+# 核心规则
+1. **知识点覆盖**：
+   - 每个知识点至少分配 1 道题，1道题可以覆盖多个知识点。
+   - 题目必须明确标注考核知识点字段
+
+2. **难度控制**：
+   | 难度等级 | 知识点中难点知识占比 | 
+   |---------|-------------------|
+   | 低难度  | <=5%     |
+   | 中等难度  | 5%-10%   |
+   | 高难度  | 10%-20%  |
+
+3. **答案解析要求**：
+   - 提供答案和解析
+
+4. **题目生成逻辑**：
+   - 题目数量严格按照题型配置中的数量要求生成
+   - 题目不能重复
+   - 确保题目的难易度与配置的难易度一致
+   - 选项设计：错误选项必须基于常见学习误区`,
+    jsonExample: `{
+  "type": "fillInBlank",
+  "title": "三、填空题",
+  "questionNumber": 1,
+  "questions": [
+    {
+      "id": 3,
+      "question": "I ___ a student.",
+      "answer": "am",
+      "explanation": "主语是I，be动词应该用am。",
+      "knowledgePoint": "介绍常用语"
+    }
+  ]
+}`
+  },
+  trueFalse: {
+    template: `请你根据以下要求生成判断题：
+
+# 试卷元数据 (metadata)
+## 年级 (grade): {{grade}} 
+## 难度级别 (difficulty): {{difficulty}}  
+## 主题场景 (theme): {{scenario}}
+## 知识点 (knowledgePoints): {{knowledgePoints}}
+
+# 内容要求
+  - 数量: {{trueFalseCount}}
+
+# 核心规则
+1. **知识点覆盖**：
+   - 每个知识点至少分配 1 道题，1道题可以覆盖多个知识点。
+   - 题目必须明确标注考核知识点字段
+
+2. **难度控制**：
+   | 难度等级 | 知识点中难点知识占比 | 
+   |---------|-------------------|
+   | 低难度  | <=5%     |
+   | 中等难度  | 5%-10%   |
+   | 高难度  | 10%-20%  |
+
+3. **答案解析要求**：
+   - 提供答案和解析
+
+4. **题目生成逻辑**：
+   - 题目数量严格按照题型配置中的数量要求生成
+   - 题目不能重复
+   - 确保题目的难易度与配置的难易度一致
+   - 选项设计：错误选项必须基于常见学习误区`,
+    jsonExample: `{
+  "type": "trueFalse",
+  "title": "四、判断题",
+  "questionNumber": 1,
+  "questions": [
+    {
+      "id": 4,
+      "question": "The sky is blue.",
+      "answer": "True",
+      "explanation": "天空是蓝色的，所以答案是True。",
+      "knowledgePoint": "表示颜色的单词"
+    }
+  ]
+}`
+  },
+  reading: {
+    template: `请你根据以下要求生成阅读理解题：
+
+# 试卷元数据 (metadata)
+## 年级 (grade): {{grade}} 
+## 难度级别 (difficulty): {{difficulty}}  
+## 主题场景 (theme): {{scenario}}
+## 知识点 (knowledgePoints): {{knowledgePoints}}
+
+# 内容要求
+  - 数量: {{readingCount}}
+  - 结构要求:
+    - 文本长度: {{ "50-80词" if grade<=2 else "100-150词" if grade<=4 else "200-250词" }}
+    - 题目类型: {{ ["选择题","判断题"] }}  # 至少包含两种题型
+
+# 核心规则
+1. **知识点覆盖**：
+   - 每个知识点至少分配 1 道题，1道题可以覆盖多个知识点。
+   - 题目必须明确标注考核知识点字段
+
+2. **难度控制**：
+   | 难度等级 | 知识点中难点知识占比 | 
+   |---------|-------------------|
+   | 低难度  | <=5%     |
+   | 中等难度  | 5%-10%   |
+   | 高难度  | 10%-20%  |
+
+3. **答案解析要求**：
+   - 提供答案和解析
+
+4. **题目生成逻辑**：
+   - 题目数量严格按照题型配置中的数量要求生成
+   - 题目不能重复
+   - 确保题目的难易度与配置的难易度一致
+   - 选项设计：错误选项必须基于常见学习误区`,
+    jsonExample: `{
+  "type": "reading",
+  "title": "五、阅读理解",
+  "readingMaterial": "I am a student. I like apples. My favorite color is blue. I have a pet dog named Max.",
+  "questionNumber": 1,
+  "questions": [
+    {
+      "id": 5,
+      "question": "What is I like?",
+      "options": ["I like apples", "I like oranges", "I like pears"],
+      "answer": "A",
+      "explanation": "从阅读材料中可以找到答案。",
+      "knowledgePoint": "表示喜欢的东西"
+    }
+  ]
+}`
+  },
+  writing: {
+    template: `请你根据以下要求生成写作题：
+
+# 试卷元数据 (metadata)
+## 年级 (grade): {{grade}} 
+## 难度级别 (difficulty): {{difficulty}}  
+## 主题场景 (theme): {{scenario}}
+## 知识点 (knowledgePoints): {{knowledgePoints}}
+
+# 内容要求
+  - 数量: {{writingCount}}
+
+# 核心规则
+1. **知识点覆盖**：
+   - 每个知识点至少分配 1 道题，1道题可以覆盖多个知识点。
+   - 题目必须明确标注考核知识点字段
+
+2. **难度控制**：
+   | 难度等级 | 知识点中难点知识占比 | 
+   |---------|-------------------|
+   | 低难度  | <=5%     |
+   | 中等难度  | 5%-10%   |
+   | 高难度  | 10%-20%  |
+
+3. **答案解析要求**：
+   - 提供评分标准，比如：
+      1. 内容完整，符合要求
+      2. 语法正确，表达清晰
+      3. 格式规范，无错别字
+      4. 同时满足上述3点要求的，每个句子得一分
+
+4. **题目生成逻辑**：
+   - 题目数量严格按照题型配置中的数量要求生成
+   - 题目不能重复
+   - 确保题目的难易度与配置的难易度一致
+   - 选项设计：错误选项必须基于常见学习误区`,
+    jsonExample: `{
+  "type": "writing",
+  "title": "六、写作题",
+  "questionNumber": 1,
+  "questions": [
+    {
+      "id": 6,
+      "question": "Write a short essay about your favorite color.",
+      "explanation": "评分标准：\n1. 内容完整，符合要求\n2. 语法正确，表达清晰\n3. 格式规范，无错别字\n4. 同时满足上述3点要求的，每个句子得一分",
+      "knowledgePoint": "表示颜色的单词"
+    }
+  ]
+}`
+  }
+};
+
+// 获取题型专用的Prompt模板
+export function getQuestionTypePrompt(
+  questionType: keyof typeof QUESTION_TYPE_TEMPLATES,
+  config: any,
+  scenario?: string,
+  knowledgePoints?: string
+): string {
+  const typeTemplate = QUESTION_TYPE_TEMPLATES[questionType];
+  if (!typeTemplate) {
+    throw new Error(`Unknown question type: ${questionType}`);
+  }
+
+  let prompt = typeTemplate.template;
+  
+  // 替换模板中的变量
+  const replacements = {
+    grade: config.grade ? getGradeName(config.grade) : '三年级',
+    difficulty: config.difficulty || '中等',
+    scenario: scenario || config.theme || '日常生活',
+    knowledgePoints: knowledgePoints || config.knowledgePoints || '基础词汇和语法',
+    listeningCount: config.questionTypes?.listening?.count || 0,
+    multipleChoiceCount: config.questionTypes?.multipleChoice?.count || 0,
+    fillInBlankCount: config.questionTypes?.fillInBlank?.count || 0,
+    trueFalseCount: config.questionTypes?.trueFalse?.count || 0,
+    readingCount: config.questionTypes?.reading?.count || 0,
+    writingCount: config.questionTypes?.writing?.count || 0
+  };
+
+  // 替换所有变量
+  Object.entries(replacements).forEach(([key, value]) => {
+    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+    prompt = prompt.replace(regex, String(value));
+  });
+
+  // 添加JSON示例
+  return `${prompt}\n\n${typeTemplate.jsonExample}`;
 }
 
 // 获取最终用于生成试卷的prompt（根据配置选择模板+json示例）

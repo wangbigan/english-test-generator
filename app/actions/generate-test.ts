@@ -1,36 +1,10 @@
 import { generateText } from "ai"
-import { createOpenAI } from "@ai-sdk/openai"
-import { createDeepSeek } from "@ai-sdk/deepseek"
 import { buildSamplePaper } from "./build-sample-paper"
-import { getFinalPromptTemplate } from "../components/prompt-config-dialog"
+import { getFinalPromptTemplate, getQuestionTypePrompt } from "../components/prompt-config-dialog"
+import { generateThemeAndAllocation, type ThemeAndAllocationResult } from "./generate-theme-and-allocation"
+import { createAIProvider, createGenerateParams, cleanAIResponse, logAPICall, logAPIResponse } from "../utils/ai-provider"
 
-interface TestConfig {
-  grade: string
-  difficulty: string
-  theme: string
-  knowledgePoints: string
-  totalScore: number
-  questionTypes: {
-    multipleChoice: { count: number; score: number }
-    fillInBlank: { count: number; score: number }
-    reading: { count: number; score: number }
-    writing: { count: number; score: number }
-    listening: { count: number; score: number }
-    trueFalse: { count: number; score: number }
-  }
-}
-
-interface OpenAIConfig {
-  apiKey: string
-  baseUrl: string
-  model: string
-}
-
-interface PromptConfig {
-  selectedTemplate: string
-  customTemplate: string
-  variables: Record<string, string>
-}
+import { TestConfig, OpenAIConfig, PromptConfig, getGradeName, getDifficultyName } from "../types/shared"
 
 export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAIConfig, promptConfig?: PromptConfig) {
   try {
@@ -42,61 +16,29 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
       return { test: buildSamplePaper(config), prompt, rawResponse: undefined }
     }
 
-    // 根据模型类型创建对应的provider实例
-    let provider
-    if (openaiConfig.model.startsWith("deepseek")) {
-      provider = createDeepSeek({
-        apiKey: openaiConfig.apiKey,
-        baseURL: openaiConfig.baseUrl || "https://api.deepseek.com/v1",
-      })
-    } else {
-      // 对于Kimi、GPT等其他模型，都使用OpenAI兼容格式
-      provider = createOpenAI({
-        apiKey: openaiConfig.apiKey,
-        baseURL: openaiConfig.baseUrl || "https://api.openai.com/v1",
-      })
-    }
+    // 创建AI提供者实例
+    const provider = createAIProvider(openaiConfig)
 
     // 构建system和user消息
     const { systemMessage, userMessage } = buildMessages(config, promptConfig)
 
-    // 根据模型类型设置不同的参数
-    let generateParams: any = {
-      model: provider(openaiConfig.model),
-      messages: [
-        { role: "system", content: systemMessage },
-        { role: "user", content: userMessage }
-      ],
-      temperature: 0.7,
-    }
+    // 创建生成参数
+    const generateParams = createGenerateParams(provider, openaiConfig, systemMessage, userMessage, 8000)
 
-    // 为不同模型设置合适的token限制
-    if (openaiConfig.model.startsWith("kimi") || openaiConfig.model.startsWith("moonshot") || openaiConfig.model.startsWith("Doubao")) {
-      // Kimi和豆包模型使用max_tokens而不是maxTokens
-      generateParams.max_tokens = 8000
-    } else {
-      generateParams.maxTokens = 8000
-    }
-
-    // 添加调试信息
-    console.log('[API Call] Model:', openaiConfig.model)
-    console.log('[API Call] BaseURL:', openaiConfig.baseUrl)
-    console.log('[API Call] Params:', JSON.stringify(generateParams, null, 2))
+    // 记录API调用信息
+    logAPICall(openaiConfig.model, openaiConfig.baseUrl, generateParams)
 
     const { text } = await generateText(generateParams)
 
     const content = text
-    console.log('[API Response] Success, content length:', content?.length || 0)
+    logAPIResponse(content)
 
     if (!content) {
       throw new Error("No content received from API.")
     }
 
-    // 把 ```json … ``` 或 ``` … ``` 包裹去掉
-    const cleanedText = content
-      .replace(/```json/gi, "")
-      .replace(/```/g, "")
-      .trim()
+    // 清理AI响应文本
+    const cleanedText = cleanAIResponse(content)
 
     // 日志：输出大模型原始返回和清理后的内容
     console.log("[AI Raw Response]", content);
@@ -233,26 +175,7 @@ export function buildPrompt(config: TestConfig, promptConfig?: PromptConfig): st
 }
 
 // 辅助函数
-function getGradeName(grade: string): string {
-  const gradeNames: Record<string, string> = {
-    "1": "一年级",
-    "2": "二年级",
-    "3": "三年级",
-    "4": "四年级",
-    "5": "五年级",
-    "6": "六年级",
-  }
-  return gradeNames[grade] || "小学"
-}
 
-function getDifficultyName(difficulty: string): string {
-  const difficultyNames: Record<string, string> = {
-    low: "基础",
-    medium: "中等",
-    high: "提高",
-  }
-  return difficultyNames[difficulty] || "标准"
-}
 
 // 防御性JSON解析，兼容大模型返回的多层字符串和非法控制字符
 function safeJsonParse(text: string) {
@@ -280,4 +203,273 @@ function safeJsonParse(text: string) {
     }
   }
   throw new Error('Failed to parse JSON from API response.');
+}
+
+// 并行生成试卷的主函数
+export async function generateTestPaperParallel(
+  config: TestConfig, 
+  openaiConfig: OpenAIConfig, 
+  promptConfig?: PromptConfig,
+  themeAndAllocation?: ThemeAndAllocationResult
+) {
+  try {
+    if (!openaiConfig?.apiKey?.trim()) {
+      console.warn("API Key missing – falling back to local sample paper")
+      const { systemMessage, userMessage } = buildMessages(config, promptConfig)
+      const prompt = systemMessage + "\n\n" + userMessage
+      return { test: buildSamplePaper(config), prompt, rawResponse: undefined }
+    }
+
+    // 如果没有提供主题场景和知识点分配，先生成
+     let finalThemeAndAllocation = themeAndAllocation
+     if (!finalThemeAndAllocation) {
+       console.log('[Parallel Generation] Generating theme and allocation first...')
+       finalThemeAndAllocation = await generateThemeAndAllocation(
+         config.theme,
+         config.grade,
+         config.knowledgePoints,
+         config.questionTypes,
+         openaiConfig
+       )
+     }
+
+    // 获取有效的题型（数量大于0的题型）
+    const activeQuestionTypes = getActiveQuestionTypes(config)
+    
+    if (activeQuestionTypes.length === 0) {
+      throw new Error('No active question types found')
+    }
+
+    console.log(`[Parallel Generation] Starting parallel generation for ${activeQuestionTypes.length} question types...`)
+
+    // 并行生成各题型
+    const generationPromises = activeQuestionTypes.map(async (questionType) => {
+      try {
+        const scenario = finalThemeAndAllocation.scenarios.find(s => s.questionType === questionType)?.scenarioDescription || finalThemeAndAllocation.backgroundDescription
+         const knowledgePoints = finalThemeAndAllocation.scenarios.find(s => s.questionType === questionType)?.knowledgePoints.join(', ') || config.knowledgePoints
+        
+        console.log(`[Parallel Generation] Generating ${questionType} with scenario: ${scenario}`)
+        
+        const { result, prompt, rawResponse } = await generateSingleQuestionType(
+          questionType,
+          config,
+          openaiConfig,
+          scenario,
+          knowledgePoints
+        )
+        
+        return { questionType, result, success: true, prompt, rawResponse }
+      } catch (error) {
+        console.error(`[Parallel Generation] Failed to generate ${questionType}:`, error)
+        return { questionType, result: null, success: false, error, prompt: '', rawResponse: '' }
+      }
+    })
+
+    // 等待所有题型生成完成
+    const results = await Promise.all(generationPromises)
+    
+    // 检查成功率
+    const successfulResults = results.filter(r => r.success)
+    const failedResults = results.filter(r => !r.success)
+    
+    console.log(`[Parallel Generation] Completed: ${successfulResults.length}/${results.length} successful`)
+    
+    if (failedResults.length > 0) {
+      console.warn('[Parallel Generation] Failed question types:', failedResults.map(r => r.questionType))
+    }
+
+    // 如果所有题型都失败，降级到示例试卷
+    if (successfulResults.length === 0) {
+      console.warn('[Parallel Generation] All question types failed, falling back to sample paper')
+      const { systemMessage, userMessage } = buildMessages(config, promptConfig)
+      const prompt = systemMessage + "\n\n" + userMessage
+      return { test: buildSamplePaper(config), prompt, rawResponse: undefined }
+    }
+
+    // 合并结果
+    const mergedTest = mergeQuestionTypeResults(successfulResults, config, finalThemeAndAllocation)
+    
+    // 构建prompt信息（用于显示）
+    const { systemMessage } = buildMessages(config, promptConfig)
+    const combinedPrompts = results.map(r => 
+       `=== ${r.questionType.toUpperCase()} ===\n${getQuestionTypePrompt(r.questionType as any, config, 
+         finalThemeAndAllocation.scenarios.find(s => s.questionType === r.questionType)?.scenarioDescription,
+         finalThemeAndAllocation.scenarios.find(s => s.questionType === r.questionType)?.knowledgePoints.join(', ')
+       )}`
+     ).join('\n\n')
+    
+    const prompt = systemMessage + "\n\n" + combinedPrompts
+    
+    // 构建questionTypePrompts数据
+    const questionTypePrompts = results.reduce((acc, r) => {
+      if (r.success && r.prompt && r.rawResponse) {
+        acc[r.questionType] = {
+          prompt: r.prompt,
+          response: r.rawResponse
+        }
+      }
+      return acc
+    }, {} as Record<string, {prompt: string, response: string}>)
+    
+    return { 
+      test: mergedTest, 
+      prompt, 
+      rawResponse: `Parallel generation completed. ${successfulResults.length}/${results.length} question types generated successfully.`,
+      themeAndAllocation: finalThemeAndAllocation,
+      questionTypePrompts
+    }
+    
+  } catch (error: any) {
+    console.error("Error in parallel generation:", error)
+    
+    // 降级到示例试卷
+    console.warn("Parallel generation failed, falling back to sample paper")
+    const { systemMessage, userMessage } = buildMessages(config, promptConfig)
+    const prompt = systemMessage + "\n\n" + userMessage
+    return { test: buildSamplePaper(config), prompt, rawResponse: undefined }
+  }
+}
+
+// 生成单个题型
+async function generateSingleQuestionType(
+  questionType: string,
+  config: TestConfig,
+  openaiConfig: OpenAIConfig,
+  scenario: string,
+  knowledgePoints: string
+): Promise<{result: any, prompt: string, rawResponse: string}> {
+  // 创建AI提供者实例
+  const provider = createAIProvider(openaiConfig)
+
+  // 获取题型专用的prompt
+  const prompt = getQuestionTypePrompt(questionType as any, config, scenario, knowledgePoints)
+  
+  // 构建system消息
+  const systemMessage = `你是一名资深的小学英语老师，专门负责生成${questionType}题型。请严格按照要求生成高质量的题目。
+
+## 输出格式要求
+- 必须严格按照JSON示例格式输出，不要包含任何其他内容
+- 务必确保JSON结构完整且语法正确
+
+## 内容安全要求
+- 生成的内容必须适合小学生，积极健康
+- 不得包含任何不当内容`
+
+  // 创建生成参数
+  const generateParams = createGenerateParams(provider, openaiConfig, systemMessage, prompt, 4000)
+
+  console.log(`[${questionType}] Calling API...`)
+  
+  const { text } = await generateText(generateParams)
+  
+  if (!text) {
+    throw new Error(`No content received for ${questionType}`)
+  }
+
+  // 清理和解析响应
+  const cleanedText = cleanAIResponse(text)
+
+  console.log(`[${questionType}] Raw response:`, cleanedText)
+  
+  try {
+    const result = safeJsonParse(cleanedText)
+    console.log(`[${questionType}] Successfully parsed`)
+    return {
+      result,
+      prompt: systemMessage + "\n\n" + prompt,
+      rawResponse: text
+    }
+  } catch (error) {
+    console.error(`[${questionType}] Failed to parse JSON:`, error)
+    throw new Error(`Failed to parse JSON for ${questionType}`)
+  }
+}
+
+// 获取有效的题型（数量大于0的题型）
+function getActiveQuestionTypes(config: TestConfig): string[] {
+  const types: string[] = []
+  
+  if (config.questionTypes.listening.count > 0) types.push('listening')
+  if (config.questionTypes.multipleChoice.count > 0) types.push('multipleChoice')
+  if (config.questionTypes.fillInBlank.count > 0) types.push('fillInBlank')
+  if (config.questionTypes.trueFalse.count > 0) types.push('trueFalse')
+  if (config.questionTypes.reading.count > 0) types.push('reading')
+  if (config.questionTypes.writing.count > 0) types.push('writing')
+  
+  return types
+}
+
+// 合并各题型的结果
+function mergeQuestionTypeResults(
+  results: Array<{ questionType: string; result: any; success: boolean }>,
+  config: TestConfig,
+  themeAndAllocation: ThemeAndAllocationResult
+): any {
+  const mergedTest: any = {
+    title: `${getGradeName(config.grade)}英语试卷`,
+    subtitle: `主题：${config.theme} | 难度：${getDifficultyName(config.difficulty)}`,
+    totalScore: config.totalScore,
+    timeLimit: "60分钟",
+    instructions: "请仔细阅读题目要求，在规定时间内完成答题。",
+    themeBackground: themeAndAllocation.backgroundDescription,
+    sections: []
+  }
+
+  // 按照固定顺序添加题型
+  const orderedTypes = ['listening', 'multipleChoice', 'fillInBlank', 'trueFalse', 'reading', 'writing']
+  
+  for (const questionType of orderedTypes) {
+    const result = results.find(r => r.questionType === questionType)
+    if (result && result.success && result.result) {
+      // 新格式直接使用result.result作为section数据
+      const sectionData = result.result
+      if (sectionData && sectionData.type === questionType) {
+        // 获取该题型的分值配置
+        const questionTypeConfig = config.questionTypes[questionType as keyof typeof config.questionTypes]
+        const pointsPerQuestion = questionTypeConfig?.score || 0
+        const totalSectionScore = (questionTypeConfig?.count || 0) * pointsPerQuestion
+        
+        // 获取该题型的主题场景信息
+        const scenarioInfo = themeAndAllocation.scenarios.find(s => s.questionType === questionType)
+        
+        // 为section添加分值信息和主题场景信息
+        const sectionWithScores = {
+          type: questionType,
+          title: sectionData.title || getQuestionTypeTitle(questionType),
+          totalScore: totalSectionScore,
+          pointsPerQuestion: pointsPerQuestion,
+          // 添加主题场景信息
+          scenarioTitle: scenarioInfo?.scenarioTitle,
+          scenarioDescription: scenarioInfo?.scenarioDescription,
+          scenarioKnowledgePoints: scenarioInfo?.knowledgePoints,
+          ...sectionData
+        }
+        
+        // 为每道题添加分值信息
+        if (sectionWithScores.questions && Array.isArray(sectionWithScores.questions)) {
+          sectionWithScores.questions = sectionWithScores.questions.map((question: any) => ({
+            ...question,
+            points: pointsPerQuestion
+          }))
+        }
+        
+        mergedTest.sections.push(sectionWithScores)
+      }
+    }
+  }
+
+  return mergedTest
+}
+
+// 获取题型标题
+function getQuestionTypeTitle(questionType: string): string {
+  const titles: Record<string, string> = {
+    listening: '听力理解',
+    multipleChoice: '选择题',
+    fillInBlank: '填空题',
+    trueFalse: '判断题',
+    reading: '阅读理解',
+    writing: '写作题'
+  }
+  return titles[questionType] || questionType
 }

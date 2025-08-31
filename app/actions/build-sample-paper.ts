@@ -1,37 +1,8 @@
-interface TestConfig {
-  grade: string
-  difficulty: string
-  theme: string
-  knowledgePoints: string
-  totalScore: number
-  questionTypes: {
-    multipleChoice: { count: number; score: number }
-    fillInBlank: { count: number; score: number }
-    reading: { count: number; score: number }
-    writing: { count: number; score: number }
-    listening: { count: number; score: number }
-    trueFalse: { count: number; score: number }
-  }
-}
+import { TestConfig, getGradeName, getDifficultyName } from "../types/shared"
 
 export function buildSamplePaper(config: TestConfig) {
-  const gradeNames = {
-    "1": "一年级",
-    "2": "二年级",
-    "3": "三年级",
-    "4": "四年级",
-    "5": "五年级",
-    "6": "六年级",
-  }
-
-  const difficultyNames = {
-    low: "基础",
-    medium: "中等",
-    high: "提高",
-  }
-
-  const gradeName = gradeNames[config.grade as keyof typeof gradeNames] || "小学"
-  const difficultyName = difficultyNames[config.difficulty as keyof typeof difficultyNames] || "标准"
+  const gradeName = getGradeName(config.grade)
+  const difficultyName = getDifficultyName(config.difficulty)
 
   // 按照指定顺序生成题目：听力题、选择题、填空题、阅读理解、写作题
   const sections = []
@@ -54,8 +25,10 @@ We have a lot of fun together!
       const question = {
         id: questionId,
         question: `根据听力材料回答：What is the girl's name? (听力题 ${i})`,
-        answer: "Lucy",
+        answer: "C",
+        options: ["Tom", "Mike", "Lucy"],
         explanation: "从听力材料开头可以听到'My name is Lucy'，所以答案是Lucy。",
+        knowledgePoint: "介绍常用语",
         points: config.questionTypes.listening.score,
       }
       questions.push(question)
@@ -69,6 +42,10 @@ We have a lot of fun together!
     sections.push({
       type: "listening",
       title: "一、听力题",
+      listeningMaterial: listeningMaterial,
+      questionNumber: config.questionTypes.listening.count,
+      totalScore: config.questionTypes.listening.count * config.questionTypes.listening.score,
+      pointsPerQuestion: config.questionTypes.listening.score,
       questions,
     })
   }
@@ -112,6 +89,7 @@ We have a lot of fun together!
         options: sample.options,
         answer: sample.answer,
         explanation: sample.explanation,
+        knowledgePoint: "基础词汇和语法",
         points: config.questionTypes.multipleChoice.score,
       }
       questions.push(question)
@@ -125,6 +103,9 @@ We have a lot of fun together!
     sections.push({
       type: "multipleChoice",
       title: "二、选择题",
+      questionNumber: config.questionTypes.multipleChoice.count,
+      totalScore: config.questionTypes.multipleChoice.count * config.questionTypes.multipleChoice.score,
+      pointsPerQuestion: config.questionTypes.multipleChoice.score,
       questions,
     })
   }
@@ -138,6 +119,7 @@ We have a lot of fun together!
         question: `I _______ a student. (示例填空题 ${i})`,
         answer: "am",
         explanation: "主语是I，be动词应该用am，构成'I am a student'（我是一名学生）。",
+        knowledgePoint: "be动词的使用",
         points: config.questionTypes.fillInBlank.score,
       }
       questions.push(question)
@@ -151,19 +133,25 @@ We have a lot of fun together!
     sections.push({
       type: "fillInBlank",
       title: "三、填空题",
+      questionNumber: config.questionTypes.fillInBlank.count,
+      totalScore: config.questionTypes.fillInBlank.count * config.questionTypes.fillInBlank.score,
+      pointsPerQuestion: config.questionTypes.fillInBlank.score,
       questions,
     })
   }
 
   // 4. 阅读理解
   if (config.questionTypes.reading.count > 0) {
+    const readingMaterial = "Tom has a cat. The cat is white and very cute. Tom likes to play with his cat every day. The cat likes to eat fish and sleep in the sun."
     const questions = []
     for (let i = 1; i <= config.questionTypes.reading.count; i++) {
       const question = {
         id: questionId,
-        question: `阅读短文：Tom has a cat. The cat is white. What color is Tom's cat? (示例阅读题 ${i})`,
-        answer: "White",
+        question: `What color is Tom's cat? (示例阅读题 ${i})`,
+        options: ["White", "Black", "Brown"],
+        answer: "A",
         explanation: "从短文中可以看到'The cat is white'，所以Tom的猫是白色的。",
+        knowledgePoint: "阅读理解",
         points: config.questionTypes.reading.score,
       }
       questions.push(question)
@@ -177,6 +165,10 @@ We have a lot of fun together!
     sections.push({
       type: "reading",
       title: "四、阅读理解",
+      readingMaterial: readingMaterial,
+      questionNumber: config.questionTypes.reading.count,
+      totalScore: config.questionTypes.reading.count * config.questionTypes.reading.score,
+      pointsPerQuestion: config.questionTypes.reading.score,
       questions,
     })
   }
@@ -213,8 +205,9 @@ We have a lot of fun together!
       const question = {
         id: questionId,
         question: `${sample.question} (示例判断题 ${i})`,
-        answer: sample.answer,
+        answer: sample.answer === "对" ? "True" : "False",
         explanation: sample.explanation,
+        knowledgePoint: "基础常识",
         points: config.questionTypes.trueFalse.score,
       }
       questions.push(question)
@@ -228,6 +221,9 @@ We have a lot of fun together!
     sections.push({
       type: "trueFalse",
       title: "五、判断题",
+      questionNumber: config.questionTypes.trueFalse.count,
+      totalScore: config.questionTypes.trueFalse.count * config.questionTypes.trueFalse.score,
+      pointsPerQuestion: config.questionTypes.trueFalse.score,
       questions,
     })
   }
@@ -239,16 +235,15 @@ We have a lot of fun together!
       const question = {
         id: questionId,
         question: `请写一篇关于你的家庭的短文，不少于50个单词。(示例写作题 ${i})`,
-        answer:
-          "参考答案：My family has three people. They are my father, my mother and me. My father is a teacher. My mother is a doctor. I am a student. We love each other very much.",
         explanation:
-          "写作题评分要点：1. 内容完整，包含家庭成员介绍；2. 语法正确，时态一致；3. 词汇使用恰当；4. 字数符合要求；5. 书写工整。",
+          "评分标准：\n1. 内容完整，符合要求\n2. 语法正确，表达清晰\n3. 格式规范，无错别字\n4. 同时满足上述3点要求的，每个句子得一分",
+        knowledgePoint: "写作表达",
         points: config.questionTypes.writing.score,
       }
       questions.push(question)
       answerKey.push({
         id: questionId,
-        answer: question.answer,
+        answer: "参考答案：My family has three people. They are my father, my mother and me. My father is a teacher. My mother is a doctor. I am a student. We love each other very much.",
         explanation: question.explanation,
       })
       questionId++
@@ -256,6 +251,9 @@ We have a lot of fun together!
     sections.push({
       type: "writing",
       title: "六、写作题",
+      questionNumber: config.questionTypes.writing.count,
+      totalScore: config.questionTypes.writing.count * config.questionTypes.writing.score,
+      pointsPerQuestion: config.questionTypes.writing.score,
       questions,
     })
   }

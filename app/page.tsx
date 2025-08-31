@@ -12,59 +12,16 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BookOpen, Settings, FileText, Download, Loader2, Settings2, Upload, Wand2 } from "lucide-react"
 import { TestPaper } from "./components/test-paper"
-import { generateTestPaper, buildPrompt } from "./actions/generate-test"
+import { generateTestPaperParallel } from "./actions/generate-test"
 import { OpenAIConfigDialog } from "./components/openai-config-dialog"
 import { PromptConfigDialog } from "./components/prompt-config-dialog"
 import { FileUpload } from "./components/file-upload"
+import { ThemeAllocationPreview } from "./components/theme-allocation-preview"
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
-import { DEFAULT_TEMPLATES } from "./components/prompt-config-dialog"
+// import { DEFAULT_TEMPLATES } from "./components/prompt-config-dialog"
+import { generateThemeAndAllocation, ThemeAndAllocationResult } from "./actions/generate-theme-and-allocation"
 
-interface TestConfig {
-  grade: string
-  difficulty: string
-  theme: string
-  knowledgePoints: string
-  totalScore: number
-  questionTypes: {
-    multipleChoice: { count: number; score: number }
-    fillInBlank: { count: number; score: number }
-    reading: { count: number; score: number }
-    writing: { count: number; score: number }
-    listening: { count: number; score: number }
-    trueFalse: { count: number, score: number }  // 判断题
-  }
-}
-
-interface GeneratedTest {
-  title: string
-  subtitle: string
-  instructions: string
-  sections: Array<{
-    type: string
-    title: string
-    questions: Array<{
-      id: number
-      question: string
-      options?: string[]
-      answer?: string
-      points: number
-      explanation?: string
-    }>
-  }>
-  totalScore: number
-  listeningMaterial?: string
-  answerKey: Array<{
-    id: number
-    answer: string
-    explanation: string
-  }>
-}
-
-interface PromptConfig {
-  selectedTemplate: string
-  customTemplate: string
-  variables: Record<string, string>
-}
+import { TestConfig, GeneratedTest, PromptConfig, OpenAIConfig } from "./types/shared"
 
 export default function HomePage() {
   const [config, setConfig] = useState<TestConfig>({
@@ -85,11 +42,7 @@ export default function HomePage() {
 
   const [showConfigDialog, setShowConfigDialog] = useState(false)
   const [showPromptDialog, setShowPromptDialog] = useState(false)
-  const [openaiConfig, setOpenaiConfig] = useState<{
-    apiKey: string
-    baseUrl: string
-    model: string
-  } | null>(null)
+  const [openaiConfig, setOpenaiConfig] = useState<OpenAIConfig | null>(null)
   const [promptConfig, setPromptConfig] = useState<PromptConfig | null>({
     selectedTemplate: "standard",
     customTemplate: "",
@@ -120,13 +73,19 @@ export default function HomePage() {
   const [generatedTest, setGeneratedTest] = useState<GeneratedTest | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [activeTab, setActiveTab] = useState("config")
-  const [promptText, setPromptText] = useState<string>("")
-  const [rawResponseText, setRawResponseText] = useState<string>("")
-  const [promptOpen, setPromptOpen] = useState<boolean>(false)
-  const [showPromptPanel, setShowPromptPanel] = useState(false)
-  const [generationError, setGenerationError] = useState<string | null>(null)
+  const [promptText, setPromptText] = useState<string>("");
+  const [rawResponseText, setRawResponseText] = useState<string>("");
+  const [promptOpen, setPromptOpen] = useState<boolean>(false);
+  // 新增：存储每个题型的prompt和响应
+  const [questionTypePrompts, setQuestionTypePrompts] = useState<Record<string, {prompt: string, response: string}>>({});
+  const [showPromptPanel, setShowPromptPanel] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  // 主题场景相关状态
+  const [themeAndAllocation, setThemeAndAllocation] = useState<ThemeAndAllocationResult | null>(null);
+  const [isGeneratingTheme, setIsGeneratingTheme] = useState(false);
+  const [showThemePreview, setShowThemePreview] = useState(false);
 
-  const handleConfigChange = (key: string, value: any) => {
+  const handleConfigChange = (key: string, value: string | number) => {
     setConfig((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -176,15 +135,21 @@ export default function HomePage() {
       totalScore: actualTotalScore,
     }
 
-    // 立即生成prompt并展示
-    const prompt = buildPrompt(configWithCorrectScore, promptConfig || undefined)
-    setPromptText(prompt)
-    setRawResponseText("") // 清空上一次的原始结果
+    // 清空之前的数据
+    setPromptText("")
+    setRawResponseText("") 
+    setQuestionTypePrompts({}) // 清空题型prompt数据
     setShowPromptPanel(true) // 生成试卷时显示折叠面板
     setGenerationError(null) // 清空之前的错误状态
     setIsGenerating(true)
     try {
-      const result = await generateTestPaper(configWithCorrectScore, openaiConfig, promptConfig || undefined)
+      // 使用并行生成功能
+      const result = await generateTestPaperParallel(
+        configWithCorrectScore, 
+        openaiConfig, 
+        promptConfig || undefined,
+        themeAndAllocation || undefined // 传入已生成的主题场景（如果有）
+      )
       
       // 检查是否有返回内容
       if (!result.rawResponse && !result.test) {
@@ -198,8 +163,20 @@ export default function HomePage() {
         // 成功生成试卷
         setGeneratedTest(result.test)
         setGenerationError(null)
+        
+        // 如果生成过程中创建了新的主题场景，保存它
+        if (result.themeAndAllocation && !themeAndAllocation) {
+          setThemeAndAllocation(result.themeAndAllocation)
+        }
       }
       
+      // 设置题型prompt和响应数据
+      if (result.questionTypePrompts) {
+        setQuestionTypePrompts(result.questionTypePrompts)
+      }
+      
+      // 设置整体prompt和响应（用于兼容旧的显示方式）
+      setPromptText(result.prompt || "")
       setRawResponseText(result.rawResponse || "")
       setActiveTab("preview")
     } catch (error) {
@@ -216,6 +193,43 @@ export default function HomePage() {
       ...prev,
       knowledgePoints: points,
     }))
+  }
+
+  // 生成主题场景和知识点分配
+  const handleGenerateTheme = async () => {
+    if (!config.grade || !config.difficulty || !config.theme) {
+      alert("请填写完整的基本信息")
+      return
+    }
+
+    // 检查OpenAI配置
+    if (!openaiConfig?.apiKey) {
+      setShowConfigDialog(true)
+      return
+    }
+
+    setIsGeneratingTheme(true)
+    try {
+      const result = await generateThemeAndAllocation(
+        config.theme,
+        config.grade,
+        config.knowledgePoints,
+        config.questionTypes,
+        openaiConfig
+      )
+      setThemeAndAllocation(result)
+      setShowThemePreview(true)
+    } catch (error) {
+      console.error("生成主题场景失败:", error)
+      alert("生成主题场景失败，请重试")
+    } finally {
+      setIsGeneratingTheme(false)
+    }
+  }
+
+  // 更新主题场景和知识点分配
+  const handleThemeUpdate = (updated: ThemeAndAllocationResult) => {
+    setThemeAndAllocation(updated)
   }
 
   const handleExport = (type: "pdf" | "json" | "word") => {
@@ -679,6 +693,51 @@ export default function HomePage() {
                       </div>
                     </div>
                   </div>
+                  
+                  {/* 主题场景生成按钮 */}
+                  <div className="pt-4 border-t">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-sm font-medium">主题场景设计</Label>
+                      {themeAndAllocation && (
+                        <Badge variant="secondary" className="text-xs">
+                          已生成
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleGenerateTheme}
+                        disabled={isGeneratingTheme || !config.theme}
+                        className="flex-1"
+                      >
+                        {isGeneratingTheme ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            生成中...
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 className="w-4 h-4 mr-2" />
+                            生成主题场景
+                          </>
+                        )}
+                      </Button>
+                      {themeAndAllocation && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowThemePreview(true)}
+                        >
+                          预览
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      为每种题型设计具体场景并分配知识点（可选，生成试卷时会自动创建）
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -905,6 +964,21 @@ export default function HomePage() {
         }}
       />
 
+      {/* 主题场景预览对话框 */}
+      {showThemePreview && themeAndAllocation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <ThemeAllocationPreview
+                themeAndAllocation={themeAndAllocation}
+                onUpdate={handleThemeUpdate}
+                onClose={() => setShowThemePreview(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Prompt 折叠面板 */}
       {showPromptPanel && (
         <div className="max-w-6xl mx-auto my-6">
@@ -912,24 +986,51 @@ export default function HomePage() {
             <AccordionItem value="prompt">
               <AccordionTrigger>大模型的输入输出</AccordionTrigger>
               <AccordionContent>
-                <div className="flex flex-col md:flex-row gap-6">
-                  <div className="flex-1 min-w-0 max-w-full md:max-w-[48%]">
-                    <div className="font-semibold mb-2">输入：提交给大模型的Prompt原文</div>
-                    {promptText ? (
-                      <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded border overflow-x-auto">{promptText}</pre>
-                    ) : (
-                      <div className="text-gray-400 text-center py-8">请先生成试卷后查看Prompt原文</div>
-                    )}
+                {questionTypePrompts && Object.keys(questionTypePrompts).length > 0 ? (
+                  <div className="space-y-6">
+                    {Object.entries(questionTypePrompts).map(([questionType, data]) => (
+                      <div key={questionType} className="border rounded-lg p-4">
+                        <h3 className="font-semibold mb-4 text-lg">
+                          {questionType === 'listening' && '听力理解'}
+                          {questionType === 'multipleChoice' && '选择题'}
+                          {questionType === 'fillInBlank' && '填空题'}
+                          {questionType === 'trueFalse' && '判断题'}
+                          {questionType === 'reading' && '阅读理解'}
+                          {questionType === 'writing' && '写作题'}
+                        </h3>
+                        <div className="flex flex-col lg:flex-row gap-6">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium mb-2 text-blue-600">输入：提交给大模型的Prompt</div>
+                            <pre className="whitespace-pre-wrap text-sm bg-blue-50 p-4 rounded border overflow-x-auto max-h-96">{data.prompt}</pre>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium mb-2 text-green-600">输出：大模型返回的内容</div>
+                            <pre className="whitespace-pre-wrap text-sm bg-green-50 p-4 rounded border overflow-x-auto max-h-96">{data.response}</pre>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex-1 min-w-0 max-w-full md:max-w-[48%]">
-                    <div className="font-semibold mb-2">输出：大模型返回的原始内容</div>
-                    {rawResponseText ? (
-                      <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded border overflow-x-auto">{rawResponseText}</pre>
-                    ) : (
-                      <div className="text-gray-400 text-center py-8">暂无AI返回内容（本地样卷或尚未生成）</div>
-                    )}
+                ) : (
+                  <div className="flex flex-col md:flex-row gap-6">
+                    <div className="flex-1 min-w-0 max-w-full md:max-w-[48%]">
+                      <div className="font-semibold mb-2">输入：提交给大模型的Prompt原文</div>
+                      {promptText ? (
+                        <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded border overflow-x-auto">{promptText}</pre>
+                      ) : (
+                        <div className="text-gray-400 text-center py-8">请先生成试卷后查看Prompt原文</div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 max-w-full md:max-w-[48%]">
+                      <div className="font-semibold mb-2">输出：大模型返回的原始内容</div>
+                      {rawResponseText ? (
+                        <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded border overflow-x-auto">{rawResponseText}</pre>
+                      ) : (
+                        <div className="text-gray-400 text-center py-8">暂无AI返回内容（本地样卷或尚未生成）</div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </AccordionContent>
             </AccordionItem>
           </Accordion>

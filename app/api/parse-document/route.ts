@@ -298,7 +298,7 @@ const parseDocFallback = async (buffer: ArrayBuffer): Promise<string> => {
   }
   
   // 合并和清理所有文本段
-  let finalText = textSegments
+  const finalText = textSegments
     .filter(segment => {
       // 过滤掉过短或无意义的段落
       return segment.length >= 3 && 
