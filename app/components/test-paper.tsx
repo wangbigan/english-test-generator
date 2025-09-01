@@ -32,6 +32,7 @@ export function TestPaper({ test }: TestPaperProps) {
               <h1 className="text-2xl font-bold">{test.title}</h1>
               <p className="text-lg text-gray-600 mt-2">{test.subtitle}</p>
             </div>
+            
             <div className="flex justify-between items-center text-sm">
               <span>姓名：_______________</span>
               <span>班级：_______________</span>
@@ -46,6 +47,20 @@ export function TestPaper({ test }: TestPaperProps) {
           </CardHeader>
 
           <CardContent className="space-y-8">
+            {/* 主题信息展示 */}
+            {test.mainTheme && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+                <h2 className="text-lg font-semibold text-blue-800">
+                  主题：{test.mainTheme}
+                </h2>
+                {test.backgroundDescription && (
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    {test.backgroundDescription}
+                  </p>
+                )}
+              </div>
+            )}
+            
             {/* 听力材料 */}
             {test.listeningMaterial && (
               <MaterialSection 

@@ -33,10 +33,8 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
       generateParams
     )
 
-    const { text } = await generateText({
-      ...generateParams,
-      model: openaiConfig.model as any // 强制类型转换以满足类型要求
-    })
+    // 直接使用generateParams中已经正确配置的model实例
+    const { text } = await generateText(generateParams)
 
     const content = text
     
@@ -377,10 +375,8 @@ async function generateSingleQuestionType(
 
     console.log(`[${questionType}] Calling API...`)
     
-    const { text } = await generateText({
-      ...generateParams,
-      model: openaiConfig.model as any // 强制类型转换以满足类型要求
-    })
+    // 直接使用generateParams中已经正确配置的model实例
+    const { text } = await generateText(generateParams)
     
     // 记录API调用成功信息
     logAPICallSuccess(moduleName, requestId, text, startTime)
@@ -443,6 +439,9 @@ function mergeQuestionTypeResults(
     totalScore: config.totalScore,
     timeLimit: "60分钟",
     instructions: "请仔细阅读题目要求，在规定时间内完成答题。",
+    // 主题相关信息
+    mainTheme: themeAndAllocation.mainTheme,
+    backgroundDescription: themeAndAllocation.backgroundDescription,
     themeBackground: themeAndAllocation.backgroundDescription,
     sections: []
   }

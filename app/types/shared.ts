@@ -38,6 +38,9 @@ export interface GeneratedTest {
   title: string
   subtitle: string
   instructions: string
+  // 主题信息
+  mainTheme?: string
+  backgroundDescription?: string
   sections: Array<{
     type: string
     title: string
