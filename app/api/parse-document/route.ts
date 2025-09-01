@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "文件大小超过4MB限制" }, { status: 400 })
     }
 
-    let result: { content: string; metadata: any; warning?: string }
+    let result: { content: string; metadata: Record<string, unknown>; warning?: string }
 
     try {
       // 读取文件内容
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
         result = await parsePptx(arrayBuffer)
       } else if (file.type.includes("ms-powerpoint") || file.name.toLowerCase().endsWith(".ppt")) {
         // PPT 文件 - JSZip + 启发式二进制解析
-        result = await parsePptWithConversion(arrayBuffer, file.name)
+        result = await parsePptWithConversion(arrayBuffer)
       } else if (file.type.includes("wordprocessingml") || file.name.toLowerCase().endsWith(".docx")) {
         // DOCX 文件 - 使用mammoth.js (完全支持)
         result = await parseDocx(arrayBuffer)
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
 }
 
 // 解析DOCX文件 - 使用mammoth.js
-const parseDocx = async (buffer: ArrayBuffer): Promise<{ content: string; metadata: any }> => {
+const parseDocx = async (buffer: ArrayBuffer): Promise<{ content: string; metadata: Record<string, unknown> }> => {
   try {
     const mammoth = await import("mammoth")
     
@@ -147,7 +147,7 @@ const parseDocx = async (buffer: ArrayBuffer): Promise<{ content: string; metada
 // 解析DOC文件 - 尝试使用mammoth.js
 const parseDocWithMammoth = async (
   buffer: ArrayBuffer,
-): Promise<{ content: string; metadata: any; warning?: string }> => {
+): Promise<{ content: string; metadata: Record<string, unknown>; warning?: string }> => {
   try {
     const mammoth = await import("mammoth")
     
@@ -193,7 +193,7 @@ const parseDocWithMammoth = async (
           parseEngine: "fallback parser",
         },
       }
-    } catch (fallbackError) {
+    } catch {
       throw new Error(`DOC解析失败: ${error instanceof Error ? error.message : "未知错误"}`)
     }
   }
@@ -324,7 +324,7 @@ const parseDocFallback = async (buffer: ArrayBuffer): Promise<string> => {
 }
 
 // 解析PPTX文件 - 使用JSZip
-const parsePptx = async (buffer: ArrayBuffer): Promise<{ content: string; metadata: any }> => {
+const parsePptx = async (buffer: ArrayBuffer): Promise<{ content: string; metadata: Record<string, unknown> }> => {
   try {
     const JSZip = (await import("jszip")).default
     const zip = new JSZip()
@@ -393,8 +393,7 @@ const parsePptx = async (buffer: ArrayBuffer): Promise<{ content: string; metada
 // 解析PPT文件 - 尝试转换后使用JSZip
 const parsePptWithConversion = async (
   buffer: ArrayBuffer,
-  filename: string,
-): Promise<{ content: string; metadata: any; warning?: string }> => {
+): Promise<{ content: string; metadata: Record<string, unknown>; warning?: string }> => {
   try {
     // 首先尝试将PPT当作ZIP文件处理（某些PPT可能是压缩格式）
     const JSZip = (await import("jszip")).default
@@ -417,7 +416,7 @@ const parsePptWithConversion = async (
           },
         }
       }
-    } catch (zipError) {
+    } catch {
       // ZIP解析失败，继续使用备用方法
     }
 

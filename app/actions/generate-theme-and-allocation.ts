@@ -2,7 +2,7 @@ import { generateText } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
 import { createDeepSeek } from "@ai-sdk/deepseek"
 
-import { TestConfig, OpenAIConfig, getGradeName, getQuestionTypeName } from "../types/shared"
+import { TestConfig, OpenAIConfig, getGradeName } from "../types/shared"
 import { logAPICallStart, logAPICallSuccess, logAPICallError } from "../utils/ai-provider"
 
 export interface ThemeScenarioWithAllocation {
@@ -195,7 +195,14 @@ ${dynamicJsonExample}
     console.log('[Theme Generation Prompt] Full Prompt Length:', systemMessage.length + userMessage.length)
 
     // 根据模型类型设置不同的参数
-    const generateParams: any = {
+    const generateParams: {
+      model: unknown;
+      messages: Array<{ role: string; content: string }>;
+      response_format: { type: string };
+      temperature: number;
+      max_tokens?: number;
+      maxTokens?: number;
+    } = {
       model: provider(openaiConfig.model),
       messages: [
         { role: "system", content: systemMessage },
@@ -222,7 +229,7 @@ ${dynamicJsonExample}
     )
 
     console.log('[Theme Generation] Starting theme and allocation generation...')
-    const { text } = await generateText(generateParams)
+    const { text } = await generateText(generateParams as Parameters<typeof generateText>[0])
 
     // 记录API调用成功信息
     logAPICallSuccess(moduleName, requestId, text, startTime)
@@ -232,7 +239,7 @@ ${dynamicJsonExample}
     }
 
     // 清理返回内容 - 移除markdown代码块标记
-    let cleanedText = text
+    const cleanedText = text
       .replace(/```json/gi, "")  // 移除开头的```json标记
       .replace(/```$/g, "")      // 移除末尾的```标记
       .replace(/```/g, "")       // 移除任何剩余的```标记
@@ -282,10 +289,10 @@ ${dynamicJsonExample}
       throw new Error('Failed to parse theme generation response')
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 记录API调用失败信息
     if (requestId) {
-      logAPICallError(moduleName, requestId, error)
+      logAPICallError(moduleName, requestId, error instanceof Error ? error : new Error(String(error)))
     }
     
     console.error('Error generating theme and allocation:', error)

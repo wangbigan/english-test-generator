@@ -227,8 +227,8 @@ export const DEFAULT_TEMPLATES: PromptTemplate[] = [
    - 数量: {{readingCount}}
    - 每题分值: {{readingScore}}
    - 结构要求:
-     - 文本长度: {{ "50-80词" if grade<=2 else "100-150词" if grade<=4 else "200-250词" }}
-     - 题目类型: {{ ["选择题","判断题"] }}  # 至少包含两种题型
+     - 文本长度: {{ &quot;50-80词&quot; if grade<=2 else &quot;100-150词&quot; if grade<=4 else &quot;200-250词&quot; }}
+     - 题目类型: {{ [&quot;选择题&quot;,&quot;判断题&quot;] }}  # 至少包含两种题型
 
 6. 写作题 (writing):
    - 数量: {{writingCount}}
@@ -488,10 +488,7 @@ export function PromptConfigDialog({ open, onOpenChange, config, onConfigSave }:
     }
   }
 
-  const currentTemplate = DEFAULT_TEMPLATES.find((t) => t.id === selectedTemplate)
-
-  // 自定义编辑Tab下，展示时统一拼接JSON_EXAMPLE用于只读区
-  const fullTemplateWithJson = `${customTemplate}\n\n${JSON_EXAMPLE}`
+  // 注释：currentTemplate 和 fullTemplateWithJson 变量已移除，因为未被使用
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -903,8 +900,8 @@ export const QUESTION_TYPE_TEMPLATES = {
 # 内容要求
   - 数量: {{readingCount}}
   - 结构要求:
-    - 文本长度: {{ "50-80词" if grade<=2 else "100-150词" if grade<=4 else "200-250词" }}
-    - 题目类型: {{ ["选择题","判断题"] }}  # 至少包含两种题型
+    - 文本长度: {{ &quot;50-80词&quot; if grade<=2 else &quot;100-150词&quot; if grade<=4 else &quot;200-250词&quot; }}
+    - 题目类型: {{ [&quot;选择题&quot;,&quot;判断题&quot;] }}  # 至少包含两种题型
 
 # 核心规则
 1. **知识点覆盖**：
@@ -998,7 +995,7 @@ export const QUESTION_TYPE_TEMPLATES = {
 // 获取题型专用的Prompt模板
 export function getQuestionTypePrompt(
   questionType: keyof typeof QUESTION_TYPE_TEMPLATES,
-  config: any,
+  config: Record<string, unknown>,
   scenario?: string,
   knowledgePoints?: string
 ): string {
@@ -1011,16 +1008,16 @@ export function getQuestionTypePrompt(
   
   // 替换模板中的变量
   const replacements = {
-    grade: config.grade ? getGradeName(config.grade) : '三年级',
-    difficulty: config.difficulty || '中等',
-    scenario: scenario || config.theme || '日常生活',
-    knowledgePoints: knowledgePoints || config.knowledgePoints || '基础词汇和语法',
-    listeningCount: config.questionTypes?.listening?.count || 0,
-    multipleChoiceCount: config.questionTypes?.multipleChoice?.count || 0,
-    fillInBlankCount: config.questionTypes?.fillInBlank?.count || 0,
-    trueFalseCount: config.questionTypes?.trueFalse?.count || 0,
-    readingCount: config.questionTypes?.reading?.count || 0,
-    writingCount: config.questionTypes?.writing?.count || 0
+    grade: config.grade ? getGradeName(config.grade as string) : '三年级',
+    difficulty: (config.difficulty as string) || '中等',
+    scenario: scenario || (config.theme as string) || '日常生活',
+    knowledgePoints: knowledgePoints || (config.knowledgePoints as string) || '基础词汇和语法',
+    listeningCount: (config.questionTypes as Record<string, Record<string, unknown>>)?.listening?.count as number || 0,
+    multipleChoiceCount: (config.questionTypes as Record<string, Record<string, unknown>>)?.multipleChoice?.count as number || 0,
+    fillInBlankCount: (config.questionTypes as Record<string, Record<string, unknown>>)?.fillInBlank?.count as number || 0,
+    trueFalseCount: (config.questionTypes as Record<string, Record<string, unknown>>)?.trueFalse?.count as number || 0,
+    readingCount: (config.questionTypes as Record<string, Record<string, unknown>>)?.reading?.count as number || 0,
+    writingCount: (config.questionTypes as Record<string, Record<string, unknown>>)?.writing?.count as number || 0
   };
 
   // 替换所有变量

@@ -76,10 +76,10 @@ export async function POST(request: NextRequest) {
     logAPICallSuccess(moduleName, requestId, knowledgePoints, startTime)
 
     return NextResponse.json({ knowledgePoints })
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 记录API调用失败信息
     if (requestId) {
-      logAPICallError(moduleName, requestId, error)
+      logAPICallError(moduleName, requestId, error instanceof Error ? error : new Error(String(error)))
     }
     
     console.error("提取知识点失败:", error)

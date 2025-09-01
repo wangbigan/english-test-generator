@@ -79,7 +79,7 @@ export default function HomePage() {
   // 新增：存储每个题型的prompt和响应
   const [questionTypePrompts, setQuestionTypePrompts] = useState<Record<string, {prompt: string, response: string}>>({});
   const [showPromptPanel, setShowPromptPanel] = useState(false);
-  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [, setGenerationError] = useState<string | null>(null);
   // 主题场景相关状态
   const [themeAndAllocation, setThemeAndAllocation] = useState<ThemeAndAllocationResult | null>(null);
   const [isGeneratingTheme, setIsGeneratingTheme] = useState(false);
@@ -155,13 +155,13 @@ export default function HomePage() {
       if (!result.rawResponse && !result.test) {
         setGenerationError("no_content")
         setGeneratedTest(null)
-      } else if (!result.test || !result.test.sections || result.test.sections.length === 0) {
+      } else if (!result.test || !(result.test as Record<string, unknown>).sections || ((result.test as Record<string, unknown>).sections as unknown[])?.length === 0) {
         // 检查返回的试卷结构是否异常
         setGenerationError("invalid_structure")
         setGeneratedTest(null)
       } else {
         // 成功生成试卷
-        setGeneratedTest(result.test)
+        setGeneratedTest(result.test as GeneratedTest)
         setGenerationError(null)
         
         // 如果生成过程中创建了新的主题场景，保存它
@@ -207,7 +207,7 @@ export default function HomePage() {
         error: true,
         errorType,
         errorMessage
-      } as any)
+      } as GeneratedTest & { error: boolean; errorType: string; errorMessage: string })
       setGenerationError(errorType)
     } finally {
       setIsGenerating(false)
@@ -876,40 +876,40 @@ export default function HomePage() {
                   <div className="max-w-4xl mx-auto space-y-4">
                     <div className="bg-white p-4 rounded-lg border border-red-200">
                       <h4 className="font-medium text-red-800 mb-2">错误详情：</h4>
-                      <p className="text-red-700">{(generatedTest as any).errorMessage}</p>
+                      <p className="text-red-700">{(generatedTest as unknown as GeneratedTest & { errorMessage: string }).errorMessage}</p>
                     </div>
                     
                     <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                       <h4 className="font-medium text-blue-800 mb-2">建议解决方案：</h4>
                       <ul className="text-blue-700 space-y-1 text-sm">
-                        {(generatedTest as any).errorType === 'api_key_missing' ? (
+                        {(generatedTest as unknown as GeneratedTest & { errorType: string }).errorType === 'api_key_missing' ? (
                           <>
-                            <li>• 点击右上角的"设置"按钮配置API密钥</li>
+                            <li>• 点击右上角的&quot;设置&quot;按钮配置API密钥</li>
                             <li>• 确保API密钥格式正确且有效</li>
                             <li>• 检查API密钥是否有足够的额度</li>
                           </>
-                        ) : (generatedTest as any).errorType === 'network_error' ? (
+                        ) : (generatedTest as unknown as GeneratedTest & { errorType: string }).errorType === 'network_error' ? (
                           <>
                             <li>• 检查网络连接是否正常</li>
                             <li>• 确认API服务地址配置正确</li>
                             <li>• 检查防火墙或代理设置</li>
                             <li>• 稍后重试</li>
                           </>
-                        ) : (generatedTest as any).errorType === 'no_content' ? (
+                        ) : (generatedTest as unknown as GeneratedTest & { errorType: string }).errorType === 'no_content' ? (
                           <>
                             <li>• 大模型未返回任何内容，可能是服务暂时不可用</li>
                             <li>• 尝试简化试卷配置（减少题目数量）</li>
                             <li>• 更换其他大模型尝试</li>
                             <li>• 稍后重试</li>
                           </>
-                        ) : (generatedTest as any).errorType === 'parse_error' ? (
+                        ) : (generatedTest as unknown as GeneratedTest & { errorType: string }).errorType === 'parse_error' ? (
                           <>
                             <li>• 大模型返回的格式不正确</li>
                             <li>• 尝试重新生成</li>
                             <li>• 简化主题描述和知识点</li>
                             <li>• 更换其他大模型尝试</li>
                           </>
-                        ) : (generatedTest as any).errorType === 'all_types_failed' ? (
+                        ) : (generatedTest as unknown as GeneratedTest & { errorType: string }).errorType === 'all_types_failed' ? (
                           <>
                             <li>• 所有题型都生成失败，可能是配置问题</li>
                             <li>• 检查题型配置是否合理</li>

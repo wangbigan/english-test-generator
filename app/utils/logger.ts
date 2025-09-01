@@ -18,7 +18,7 @@ export interface LogEntry {
   level: LogLevel
   module: string
   message: string
-  data?: Record<string, any>
+  data?: Record<string, unknown>
   requestId?: string
   duration?: string
 }
@@ -185,7 +185,7 @@ class Logger {
     level: LogLevel,
     module: string,
     message: string,
-    data?: Record<string, any>,
+    data?: Record<string, unknown>,
     requestId?: string,
     duration?: string
   ): void {
@@ -215,7 +215,7 @@ class Logger {
   public debug(
     module: string,
     message: string,
-    data?: Record<string, any>,
+    data?: Record<string, unknown>,
     requestId?: string
   ): void {
     this.log(LogLevel.DEBUG, module, message, data, requestId)
@@ -231,7 +231,7 @@ class Logger {
   public info(
     module: string,
     message: string,
-    data?: Record<string, any>,
+    data?: Record<string, unknown>,
     requestId?: string
   ): void {
     this.log(LogLevel.INFO, module, message, data, requestId)
@@ -247,7 +247,7 @@ class Logger {
   public warn(
     module: string,
     message: string,
-    data?: Record<string, any>,
+    data?: Record<string, unknown>,
     requestId?: string
   ): void {
     this.log(LogLevel.WARN, module, message, data, requestId)
@@ -263,7 +263,7 @@ class Logger {
   public error(
     module: string,
     message: string,
-    data?: Record<string, any>,
+    data?: Record<string, unknown>,
     requestId?: string
   ): void {
     this.log(LogLevel.ERROR, module, message, data, requestId)
@@ -319,10 +319,10 @@ class Logger {
       module,
       'API调用完成',
       {
-        success: true
+        success: true,
+        duration: apiCallLog.outputData.duration
       },
-      apiCallLog.requestId,
-      apiCallLog.outputData.duration
+      apiCallLog.requestId
     )
 
     this.debug(
