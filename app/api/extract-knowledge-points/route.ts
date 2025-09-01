@@ -57,7 +57,9 @@ export async function POST(request: NextRequest) {
 
     const generateParams = {
       model: provider(config.model),
-      prompt,
+      messages: [
+        { role: "user", content: prompt }
+      ],
       temperature: 0.1, // 降低温度，让模型更严格地执行指令
     }
 

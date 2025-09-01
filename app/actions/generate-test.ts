@@ -1,5 +1,4 @@
 import { generateText } from "ai"
-import { buildSamplePaper } from "./build-sample-paper"
 import { getFinalPromptTemplate, getQuestionTypePrompt } from "../components/prompt-config-dialog"
 import { generateThemeAndAllocation, type ThemeAndAllocationResult } from "./generate-theme-and-allocation"
 import { createAIProvider, createGenerateParams, cleanAIResponse, logAPICallStart, logAPICallSuccess, logAPICallError } from "../utils/ai-provider"
@@ -34,7 +33,7 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
     )
 
     // 直接使用generateParams中已经正确配置的model实例
-    const { text } = await generateText(generateParams)
+    const { text } = await generateText(generateParams as Parameters<typeof generateText>[0])
 
     const content = text
     
@@ -62,23 +61,24 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
       console.error("Raw response from API:", cleanedText)
       throw new Error("Failed to parse JSON from API response.")
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 记录API调用失败信息
     if (requestId) {
-      logAPICallError(moduleName, requestId, error)
+      logAPICallError(moduleName, requestId, error as Error)
     }
     
     console.error("Error generating test paper:", error)
+    const errorObj = error as Error
     console.error("Error details:", {
-      message: error.message,
-      name: error.name,
-      stack: error.stack,
+      message: errorObj.message,
+      name: errorObj.name,
+      stack: errorObj.stack,
       model: openaiConfig.model,
       baseUrl: openaiConfig.baseUrl
     })
 
     // 特殊处理网络错误
-    if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
+    if (errorObj.message?.includes('Failed to fetch') || errorObj.name === 'TypeError') {
       console.error('Network error detected. This might be due to:')
       console.error('1. Incorrect Base URL for the model')
       console.error('2. API endpoint not accessible')
@@ -208,7 +208,7 @@ function safeJsonParse(text: string) {
         continue;
       }
       return parsed;
-    } catch (e) {
+    } catch {
       break;
     }
   }
@@ -252,8 +252,8 @@ export async function generateTestPaperParallel(
     // 并行生成各题型
     const generationPromises = activeQuestionTypes.map(async (questionType) => {
       try {
-        const scenario = finalThemeAndAllocation.scenarios.find(s => s.questionType === questionType)?.scenarioDescription || finalThemeAndAllocation.backgroundDescription
-         const knowledgePoints = finalThemeAndAllocation.scenarios.find(s => s.questionType === questionType)?.knowledgePoints.join(', ') || config.knowledgePoints
+        const scenario = finalThemeAndAllocation?.scenarios.find(s => s.questionType === questionType)?.scenarioDescription || finalThemeAndAllocation?.backgroundDescription || ''
+         const knowledgePoints = finalThemeAndAllocation?.scenarios.find(s => s.questionType === questionType)?.knowledgePoints.join(', ') || config.knowledgePoints
         
         console.log(`[Parallel Generation] Generating ${questionType} with scenario: ${scenario}`)
         
@@ -297,9 +297,9 @@ export async function generateTestPaperParallel(
     // 构建prompt信息（用于显示）
     const { systemMessage } = buildMessages(config, promptConfig)
     const combinedPrompts = results.map(r => 
-       `=== ${r.questionType.toUpperCase()} ===\n${getQuestionTypePrompt(r.questionType as any, config, 
-         finalThemeAndAllocation.scenarios.find(s => s.questionType === r.questionType)?.scenarioDescription,
-         finalThemeAndAllocation.scenarios.find(s => s.questionType === r.questionType)?.knowledgePoints.join(', ')
+       `=== ${r.questionType.toUpperCase()} ===\n${getQuestionTypePrompt(r.questionType as keyof typeof config.questionTypes, config as unknown as Record<string, unknown>, 
+         finalThemeAndAllocation?.scenarios.find(s => s.questionType === r.questionType)?.scenarioDescription,
+         finalThemeAndAllocation?.scenarios.find(s => s.questionType === r.questionType)?.knowledgePoints.join(', ')
        )}`
      ).join('\n\n')
     
@@ -324,7 +324,7 @@ export async function generateTestPaperParallel(
       questionTypePrompts
     }
     
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in parallel generation:", error)
     
     // 直接抛出错误，不再降级到示例试卷
@@ -339,7 +339,7 @@ async function generateSingleQuestionType(
   openaiConfig: OpenAIConfig,
   scenario: string,
   knowledgePoints: string
-): Promise<{result: any, prompt: string, rawResponse: string}> {
+): Promise<{result: unknown, prompt: string, rawResponse: string}> {
   const moduleName = `generate-${questionType}`
   let requestId: string | undefined
   
@@ -348,7 +348,7 @@ async function generateSingleQuestionType(
     const provider = createAIProvider(openaiConfig)
 
     // 获取题型专用的prompt
-    const prompt = getQuestionTypePrompt(questionType as any, config, scenario, knowledgePoints)
+    const prompt = getQuestionTypePrompt(questionType as keyof typeof config.questionTypes, config as unknown as Record<string, unknown>, scenario, knowledgePoints)
     
     // 构建system消息
     const systemMessage = `你是一名资深的小学英语老师，专门负责生成${questionType}题型。请严格按照要求生成高质量的题目。
@@ -376,7 +376,7 @@ async function generateSingleQuestionType(
     console.log(`[${questionType}] Calling API...`)
     
     // 直接使用generateParams中已经正确配置的model实例
-    const { text } = await generateText(generateParams)
+    const { text } = await generateText(generateParams as Parameters<typeof generateText>[0])
     
     // 记录API调用成功信息
     logAPICallSuccess(moduleName, requestId, text, startTime)
@@ -402,10 +402,10 @@ async function generateSingleQuestionType(
       console.error(`[${questionType}] Failed to parse JSON:`, error)
       throw new Error(`Failed to parse JSON for ${questionType}`)
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 记录API调用失败信息
     if (requestId) {
-      logAPICallError(moduleName, requestId, error)
+      logAPICallError(moduleName, requestId, error as Error)
     }
     
     console.error(`[${questionType}] Error:`, error)
@@ -429,11 +429,11 @@ function getActiveQuestionTypes(config: TestConfig): string[] {
 
 // 合并各题型的结果
 function mergeQuestionTypeResults(
-  results: Array<{ questionType: string; result: any; success: boolean }>,
+  results: Array<{ questionType: string; result: unknown; success: boolean }>,
   config: TestConfig,
   themeAndAllocation: ThemeAndAllocationResult
-): any {
-  const mergedTest: any = {
+): unknown {
+  const mergedTest: Record<string, unknown> = {
     title: `${getGradeName(config.grade)}英语试卷`,
     subtitle: `主题：${config.theme} | 难度：${getDifficultyName(config.difficulty)}`,
     totalScore: config.totalScore,
@@ -453,7 +453,7 @@ function mergeQuestionTypeResults(
     const result = results.find(r => r.questionType === questionType)
     if (result && result.success && result.result) {
       // 新格式直接使用result.result作为section数据
-      const sectionData = result.result
+      const sectionData = result.result as Record<string, unknown>
       if (sectionData && sectionData.type === questionType) {
         // 获取该题型的分值配置
         const questionTypeConfig = config.questionTypes[questionType as keyof typeof config.questionTypes]
@@ -464,7 +464,7 @@ function mergeQuestionTypeResults(
         const scenarioInfo = themeAndAllocation.scenarios.find(s => s.questionType === questionType)
         
         // 为section添加分值信息和主题场景信息
-        const sectionWithScores = {
+        const sectionWithScores: Record<string, unknown> = {
           type: questionType,
           title: sectionData.title || getQuestionTypeTitle(questionType),
           totalScore: totalSectionScore,
@@ -478,13 +478,13 @@ function mergeQuestionTypeResults(
         
         // 为每道题添加分值信息
         if (sectionWithScores.questions && Array.isArray(sectionWithScores.questions)) {
-          sectionWithScores.questions = sectionWithScores.questions.map((question: any) => ({
+          sectionWithScores.questions = (sectionWithScores.questions as Record<string, unknown>[]).map((question: Record<string, unknown>) => ({
             ...question,
             points: pointsPerQuestion
           }))
         }
         
-        mergedTest.sections.push(sectionWithScores)
+        (mergedTest.sections as Record<string, unknown>[]).push(sectionWithScores)
       }
     }
   }
