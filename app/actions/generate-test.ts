@@ -2,18 +2,17 @@ import { generateText } from "ai"
 import { buildSamplePaper } from "./build-sample-paper"
 import { getFinalPromptTemplate, getQuestionTypePrompt } from "../components/prompt-config-dialog"
 import { generateThemeAndAllocation, type ThemeAndAllocationResult } from "./generate-theme-and-allocation"
-import { createAIProvider, createGenerateParams, cleanAIResponse, logAPICall, logAPIResponse } from "../utils/ai-provider"
+import { createAIProvider, createGenerateParams, cleanAIResponse, logAPICallStart, logAPICallSuccess, logAPICallError } from "../utils/ai-provider"
 
 import { TestConfig, OpenAIConfig, PromptConfig, getGradeName, getDifficultyName } from "../types/shared"
 
 export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAIConfig, promptConfig?: PromptConfig) {
+  const moduleName = 'generate-test-paper'
+  let requestId: string | undefined
+  
   try {
     if (!openaiConfig?.apiKey?.trim()) {
-      console.warn("API Key missing – falling back to local sample paper")
-      // 构建prompt
-      const { systemMessage, userMessage } = buildMessages(config, promptConfig)
-      const prompt = systemMessage + "\n\n" + userMessage
-      return { test: buildSamplePaper(config), prompt, rawResponse: undefined }
+      throw new Error("API密钥缺失，请在设置中配置有效的API密钥")
     }
 
     // 创建AI提供者实例
@@ -25,13 +24,24 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
     // 创建生成参数
     const generateParams = createGenerateParams(provider, openaiConfig, systemMessage, userMessage, 8000)
 
-    // 记录API调用信息
-    logAPICall(openaiConfig.model, openaiConfig.baseUrl, generateParams)
+    // 记录API调用开始信息
+    const startTime = Date.now()
+    requestId = logAPICallStart(
+      moduleName,
+      openaiConfig.model,
+      openaiConfig.baseUrl || '',
+      generateParams
+    )
 
-    const { text } = await generateText(generateParams)
+    const { text } = await generateText({
+      ...generateParams,
+      model: openaiConfig.model as any // 强制类型转换以满足类型要求
+    })
 
     const content = text
-    logAPIResponse(content)
+    
+    // 记录API调用成功信息
+    logAPICallSuccess(moduleName, requestId, content, startTime)
 
     if (!content) {
       throw new Error("No content received from API.")
@@ -55,6 +65,11 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
       throw new Error("Failed to parse JSON from API response.")
     }
   } catch (error: any) {
+    // 记录API调用失败信息
+    if (requestId) {
+      logAPICallError(moduleName, requestId, error)
+    }
+    
     console.error("Error generating test paper:", error)
     console.error("Error details:", {
       message: error.message,
@@ -79,11 +94,8 @@ export async function generateTestPaper(config: TestConfig, openaiConfig: OpenAI
       }
     }
 
-    // 如果API调用失败，返回示例试卷而不是抛出错误
-    console.warn("API call failed, falling back to sample paper")
-    const { systemMessage, userMessage } = buildMessages(config, promptConfig)
-    const prompt = systemMessage + "\n\n" + userMessage
-    return { test: buildSamplePaper(config), prompt, rawResponse: undefined }
+    // 直接抛出错误，不再降级到示例试卷
+    throw error
   }
 }
 
@@ -214,10 +226,7 @@ export async function generateTestPaperParallel(
 ) {
   try {
     if (!openaiConfig?.apiKey?.trim()) {
-      console.warn("API Key missing – falling back to local sample paper")
-      const { systemMessage, userMessage } = buildMessages(config, promptConfig)
-      const prompt = systemMessage + "\n\n" + userMessage
-      return { test: buildSamplePaper(config), prompt, rawResponse: undefined }
+      throw new Error("API密钥缺失，请在设置中配置有效的API密钥")
     }
 
     // 如果没有提供主题场景和知识点分配，先生成
@@ -278,12 +287,10 @@ export async function generateTestPaperParallel(
       console.warn('[Parallel Generation] Failed question types:', failedResults.map(r => r.questionType))
     }
 
-    // 如果所有题型都失败，降级到示例试卷
+    // 如果所有题型都失败，抛出错误
     if (successfulResults.length === 0) {
-      console.warn('[Parallel Generation] All question types failed, falling back to sample paper')
-      const { systemMessage, userMessage } = buildMessages(config, promptConfig)
-      const prompt = systemMessage + "\n\n" + userMessage
-      return { test: buildSamplePaper(config), prompt, rawResponse: undefined }
+      const errorMessages = failedResults.map(r => `${r.questionType}: ${(r.error as Error)?.message || '未知错误'}`).join('; ')
+      throw new Error(`所有题型生成失败。详细错误: ${errorMessages}`)
     }
 
     // 合并结果
@@ -322,11 +329,8 @@ export async function generateTestPaperParallel(
   } catch (error: any) {
     console.error("Error in parallel generation:", error)
     
-    // 降级到示例试卷
-    console.warn("Parallel generation failed, falling back to sample paper")
-    const { systemMessage, userMessage } = buildMessages(config, promptConfig)
-    const prompt = systemMessage + "\n\n" + userMessage
-    return { test: buildSamplePaper(config), prompt, rawResponse: undefined }
+    // 直接抛出错误，不再降级到示例试卷
+    throw error
   }
 }
 
@@ -338,14 +342,18 @@ async function generateSingleQuestionType(
   scenario: string,
   knowledgePoints: string
 ): Promise<{result: any, prompt: string, rawResponse: string}> {
-  // 创建AI提供者实例
-  const provider = createAIProvider(openaiConfig)
-
-  // 获取题型专用的prompt
-  const prompt = getQuestionTypePrompt(questionType as any, config, scenario, knowledgePoints)
+  const moduleName = `generate-${questionType}`
+  let requestId: string | undefined
   
-  // 构建system消息
-  const systemMessage = `你是一名资深的小学英语老师，专门负责生成${questionType}题型。请严格按照要求生成高质量的题目。
+  try {
+    // 创建AI提供者实例
+    const provider = createAIProvider(openaiConfig)
+
+    // 获取题型专用的prompt
+    const prompt = getQuestionTypePrompt(questionType as any, config, scenario, knowledgePoints)
+    
+    // 构建system消息
+    const systemMessage = `你是一名资深的小学英语老师，专门负责生成${questionType}题型。请严格按照要求生成高质量的题目。
 
 ## 输出格式要求
 - 必须严格按照JSON示例格式输出，不要包含任何其他内容
@@ -355,33 +363,57 @@ async function generateSingleQuestionType(
 - 生成的内容必须适合小学生，积极健康
 - 不得包含任何不当内容`
 
-  // 创建生成参数
-  const generateParams = createGenerateParams(provider, openaiConfig, systemMessage, prompt, 4000)
+    // 创建生成参数
+    const generateParams = createGenerateParams(provider, openaiConfig, systemMessage, prompt, 4000)
 
-  console.log(`[${questionType}] Calling API...`)
-  
-  const { text } = await generateText(generateParams)
-  
-  if (!text) {
-    throw new Error(`No content received for ${questionType}`)
-  }
+    // 记录API调用开始信息
+    const startTime = Date.now()
+    requestId = logAPICallStart(
+      moduleName,
+      openaiConfig.model,
+      openaiConfig.baseUrl || '',
+      generateParams
+    )
 
-  // 清理和解析响应
-  const cleanedText = cleanAIResponse(text)
-
-  console.log(`[${questionType}] Raw response:`, cleanedText)
-  
-  try {
-    const result = safeJsonParse(cleanedText)
-    console.log(`[${questionType}] Successfully parsed`)
-    return {
-      result,
-      prompt: systemMessage + "\n\n" + prompt,
-      rawResponse: text
+    console.log(`[${questionType}] Calling API...`)
+    
+    const { text } = await generateText({
+      ...generateParams,
+      model: openaiConfig.model as any // 强制类型转换以满足类型要求
+    })
+    
+    // 记录API调用成功信息
+    logAPICallSuccess(moduleName, requestId, text, startTime)
+    
+    if (!text) {
+      throw new Error(`No content received for ${questionType}`)
     }
-  } catch (error) {
-    console.error(`[${questionType}] Failed to parse JSON:`, error)
-    throw new Error(`Failed to parse JSON for ${questionType}`)
+
+    // 清理和解析响应
+    const cleanedText = cleanAIResponse(text)
+
+    console.log(`[${questionType}] Raw response:`, cleanedText)
+    
+    try {
+      const result = safeJsonParse(cleanedText)
+      console.log(`[${questionType}] Successfully parsed`)
+      return {
+        result,
+        prompt: systemMessage + "\n\n" + prompt,
+        rawResponse: text
+      }
+    } catch (error) {
+      console.error(`[${questionType}] Failed to parse JSON:`, error)
+      throw new Error(`Failed to parse JSON for ${questionType}`)
+    }
+  } catch (error: any) {
+    // 记录API调用失败信息
+    if (requestId) {
+      logAPICallError(moduleName, requestId, error)
+    }
+    
+    console.error(`[${questionType}] Error:`, error)
+    throw error
   }
 }
 

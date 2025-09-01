@@ -2,8 +2,12 @@ import { generateText } from "ai"
 import { createOpenAI } from "@ai-sdk/openai"
 import { createDeepSeek } from "@ai-sdk/deepseek"
 import { type NextRequest, NextResponse } from "next/server"
+import { logAPICallStart, logAPICallSuccess, logAPICallError } from "../../utils/ai-provider"
 
 export async function POST(request: NextRequest) {
+  const moduleName = 'extract-knowledge-points-api'
+  let requestId: string | undefined
+  
   try {
     const { text, config } = await request.json()
 
@@ -26,9 +30,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const { text: knowledgePoints } = await generateText({
-      model: provider(config.model),
-      prompt: `
+    const prompt = `
         请分析以下文档内容，提取出适合小学英语教学的重点知识点。
 
         重要提示：如果文档内容出现大量乱码、无法识别的字符、或者内容不是正常的可读文本，请直接回复："文档内容乱码，请检查文件是否正常"，不要输出其他任何内容。
@@ -51,12 +53,35 @@ export async function POST(request: NextRequest) {
         - 字数不超过300字
 
         请直接输出整理后的知识点内容，不需要额外的格式标记。
-      `,
+      `
+
+    const generateParams = {
+      model: provider(config.model),
+      prompt,
       temperature: 0.1, // 降低温度，让模型更严格地执行指令
-    })
+    }
+
+    // 记录API调用开始信息
+    const startTime = Date.now()
+    requestId = logAPICallStart(
+      moduleName,
+      config.model,
+      config.baseUrl || '',
+      generateParams
+    )
+
+    const { text: knowledgePoints } = await generateText(generateParams)
+
+    // 记录API调用成功信息
+    logAPICallSuccess(moduleName, requestId, knowledgePoints, startTime)
 
     return NextResponse.json({ knowledgePoints })
-  } catch (error) {
+  } catch (error: any) {
+    // 记录API调用失败信息
+    if (requestId) {
+      logAPICallError(moduleName, requestId, error)
+    }
+    
     console.error("提取知识点失败:", error)
     return NextResponse.json({ error: "提取知识点失败" }, { status: 500 })
   }

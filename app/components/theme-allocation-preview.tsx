@@ -12,7 +12,7 @@ import { Edit2, Save, X, Plus, Trash2 } from 'lucide-react'
 import { ThemeAndAllocationResult, ThemeScenarioWithAllocation } from '../actions/generate-theme-and-allocation'
 
 interface ThemeAllocationPreviewProps {
-  themeAndAllocation: ThemeAndAllocationResult
+  themeAndAllocation: ThemeAndAllocationResult | { error: boolean; errorMessage: string; errorType: string }
   onUpdate?: (updated: ThemeAndAllocationResult) => void
   onClose?: () => void
 }
@@ -22,8 +22,13 @@ export function ThemeAllocationPreview({
   onUpdate, 
   onClose 
 }: ThemeAllocationPreviewProps) {
+  // 检查是否为错误状态
+  const isError = 'error' in themeAndAllocation && themeAndAllocation.error
+  
   const [isEditing, setIsEditing] = useState(false)
-  const [editedData, setEditedData] = useState<ThemeAndAllocationResult>(themeAndAllocation)
+  const [editedData, setEditedData] = useState<ThemeAndAllocationResult>(
+    isError ? {} as ThemeAndAllocationResult : themeAndAllocation as ThemeAndAllocationResult
+  )
 
   const handleSave = () => {
     onUpdate?.(editedData)
@@ -31,11 +36,13 @@ export function ThemeAllocationPreview({
   }
 
   const handleCancel = () => {
-    setEditedData(themeAndAllocation)
-    setIsEditing(false)
+    if (!isError) {
+      setEditedData(themeAndAllocation as ThemeAndAllocationResult)
+      setIsEditing(false)
+    }
   }
 
-  const updateScenario = (index: number, field: keyof ThemeScenarioWithAllocation, value: any) => {
+  const updateScenario = (index: number, field: keyof ThemeScenarioWithAllocation, value: string | string[]) => {
     const newScenarios = [...editedData.scenarios]
     newScenarios[index] = { ...newScenarios[index], [field]: value }
     setEditedData({ ...editedData, scenarios: newScenarios })
@@ -68,6 +75,63 @@ export function ThemeAllocationPreview({
 
 
 
+  // 如果是错误状态，显示错误信息
+  if (isError) {
+    const errorData = themeAndAllocation as { error: boolean; errorMessage: string; errorType: string }
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">主题场景生成失败</h2>
+            <p className="text-gray-600">生成过程中出现了问题</p>
+          </div>
+          <Button onClick={onClose} variant="outline">
+            <X className="w-4 h-4 mr-2" />
+            关闭
+          </Button>
+        </div>
+        
+        <Card className="border-red-200 bg-red-50">
+          <CardHeader>
+            <CardTitle className="text-red-700 flex items-center gap-2">
+              <span className="text-2xl">⚠️</span>
+              {errorData.errorType === 'api_error' ? 'API调用失败' : '生成失败'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded-lg border border-red-200">
+                <h4 className="font-medium text-red-800 mb-2">错误详情：</h4>
+                <p className="text-red-700">{errorData.errorMessage}</p>
+              </div>
+              
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-medium text-blue-800 mb-2">建议解决方案：</h4>
+                <ul className="text-blue-700 space-y-1 text-sm">
+                  {errorData.errorType === 'api_error' ? (
+                    <>
+                      <li>• 检查网络连接是否正常</li>
+                      <li>• 确认API密钥配置正确</li>
+                      <li>• 检查API服务是否可用</li>
+                      <li>• 稍后重试</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>• 检查输入的主题和配置是否合理</li>
+                      <li>• 尝试简化主题描述</li>
+                      <li>• 减少选择的题型数量</li>
+                      <li>• 稍后重试</li>
+                    </>
+                  )}
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* 头部操作栏 */}
@@ -83,12 +147,10 @@ export function ThemeAllocationPreview({
                 <Edit2 className="w-4 h-4 mr-2" />
                 编辑
               </Button>
-              {onClose && (
-                <Button variant="outline" onClick={onClose}>
-                  <X className="w-4 h-4 mr-2" />
-                  关闭
-                </Button>
-              )}
+              <Button onClick={onClose} variant="outline">
+                <X className="w-4 h-4 mr-2" />
+                关闭
+              </Button>
             </>
           ) : (
             <>
@@ -96,7 +158,7 @@ export function ThemeAllocationPreview({
                 <Save className="w-4 h-4 mr-2" />
                 保存
               </Button>
-              <Button variant="outline" onClick={handleCancel}>
+              <Button onClick={handleCancel} variant="outline">
                 <X className="w-4 h-4 mr-2" />
                 取消
               </Button>

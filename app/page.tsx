@@ -181,8 +181,34 @@ export default function HomePage() {
       setActiveTab("preview")
     } catch (error) {
       console.error("生成试卷失败:", error)
-      setGenerationError("generation_failed")
-      setGeneratedTest(null)
+      
+      // 根据错误类型设置不同的错误状态
+      let errorType = "generation_failed"
+      let errorMessage = "生成试卷失败，请重试"
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+        
+        if (error.message.includes("API密钥") || error.message.includes("API Key")) {
+          errorType = "api_key_missing"
+        } else if (error.message.includes("Failed to fetch") || error.message.includes("Network")) {
+          errorType = "network_error"
+        } else if (error.message.includes("No content received") || error.message.includes("未接收到")) {
+          errorType = "no_content"
+        } else if (error.message.includes("Failed to parse") || error.message.includes("JSON")) {
+          errorType = "parse_error"
+        } else if (error.message.includes("所有题型生成失败")) {
+          errorType = "all_types_failed"
+        }
+      }
+      
+      // 设置错误状态，让试卷预览界面显示错误信息
+      setGeneratedTest({
+        error: true,
+        errorType,
+        errorMessage
+      } as any)
+      setGenerationError(errorType)
     } finally {
       setIsGenerating(false)
     }
@@ -209,6 +235,7 @@ export default function HomePage() {
     }
 
     setIsGeneratingTheme(true)
+    setThemeAndAllocation(null) // 清空之前的结果
     try {
       const result = await generateThemeAndAllocation(
         config.theme,
@@ -221,7 +248,13 @@ export default function HomePage() {
       setShowThemePreview(true)
     } catch (error) {
       console.error("生成主题场景失败:", error)
-      alert("生成主题场景失败，请重试")
+      // 设置错误状态，让ThemeAllocationPreview组件显示错误信息
+       setThemeAndAllocation({
+         error: true,
+         errorMessage: error instanceof Error ? error.message : "生成主题场景失败，请重试",
+         errorType: error instanceof Error && error.message.includes("API") ? "api_error" : "generation_error"
+       } as ThemeAndAllocationResult & { error: boolean; errorMessage: string; errorType: string })
+      setShowThemePreview(true)
     } finally {
       setIsGeneratingTheme(false)
     }
@@ -829,45 +862,87 @@ export default function HomePage() {
           </TabsContent>
 
           <TabsContent value="preview">
-            {generatedTest ? (
+            {generatedTest && !('error' in generatedTest) ? (
               <TestPaper test={generatedTest} />
+            ) : generatedTest && 'error' in generatedTest ? (
+              <Card className="border-red-200 bg-red-50">
+                <CardContent className="py-12">
+                  <div className="text-center mb-6">
+                    <div className="text-6xl mb-4">⚠️</div>
+                    <h2 className="text-2xl font-bold text-red-700 mb-2">试卷生成失败</h2>
+                    <p className="text-red-600">生成过程中出现了问题</p>
+                  </div>
+                  
+                  <div className="max-w-4xl mx-auto space-y-4">
+                    <div className="bg-white p-4 rounded-lg border border-red-200">
+                      <h4 className="font-medium text-red-800 mb-2">错误详情：</h4>
+                      <p className="text-red-700">{(generatedTest as any).errorMessage}</p>
+                    </div>
+                    
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                      <h4 className="font-medium text-blue-800 mb-2">建议解决方案：</h4>
+                      <ul className="text-blue-700 space-y-1 text-sm">
+                        {(generatedTest as any).errorType === 'api_key_missing' ? (
+                          <>
+                            <li>• 点击右上角的"设置"按钮配置API密钥</li>
+                            <li>• 确保API密钥格式正确且有效</li>
+                            <li>• 检查API密钥是否有足够的额度</li>
+                          </>
+                        ) : (generatedTest as any).errorType === 'network_error' ? (
+                          <>
+                            <li>• 检查网络连接是否正常</li>
+                            <li>• 确认API服务地址配置正确</li>
+                            <li>• 检查防火墙或代理设置</li>
+                            <li>• 稍后重试</li>
+                          </>
+                        ) : (generatedTest as any).errorType === 'no_content' ? (
+                          <>
+                            <li>• 大模型未返回任何内容，可能是服务暂时不可用</li>
+                            <li>• 尝试简化试卷配置（减少题目数量）</li>
+                            <li>• 更换其他大模型尝试</li>
+                            <li>• 稍后重试</li>
+                          </>
+                        ) : (generatedTest as any).errorType === 'parse_error' ? (
+                          <>
+                            <li>• 大模型返回的格式不正确</li>
+                            <li>• 尝试重新生成</li>
+                            <li>• 简化主题描述和知识点</li>
+                            <li>• 更换其他大模型尝试</li>
+                          </>
+                        ) : (generatedTest as any).errorType === 'all_types_failed' ? (
+                          <>
+                            <li>• 所有题型都生成失败，可能是配置问题</li>
+                            <li>• 检查题型配置是否合理</li>
+                            <li>• 简化主题和知识点描述</li>
+                            <li>• 减少题目数量后重试</li>
+                          </>
+                        ) : (
+                          <>
+                            <li>• 检查网络连接和API配置</li>
+                            <li>• 尝试简化试卷配置</li>
+                            <li>• 更换其他大模型尝试</li>
+                            <li>• 稍后重试</li>
+                          </>
+                        )}
+                      </ul>
+                    </div>
+                    
+                    <div className="text-center">
+                      <Button 
+                        onClick={() => setActiveTab("config")} 
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        返回配置页面重新生成
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             ) : (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <FileText className="w-16 h-16 text-gray-400 mb-4" />
-                  {generationError === "no_content" ? (
-                    <div className="text-center">
-                      <p className="text-red-500 mb-2">大模型未返回结果</p>
-                      <button 
-                        onClick={() => setActiveTab("config")} 
-                        className="text-blue-500 hover:text-blue-700 underline cursor-pointer"
-                      >
-                        请重新生成
-                      </button>
-                    </div>
-                  ) : generationError === "invalid_structure" ? (
-                    <div className="text-center">
-                      <p className="text-red-500 mb-2">大模型返回结果异常</p>
-                      <button 
-                        onClick={() => setActiveTab("config")} 
-                        className="text-blue-500 hover:text-blue-700 underline cursor-pointer"
-                      >
-                        请重新生成
-                      </button>
-                    </div>
-                  ) : generationError === "generation_failed" ? (
-                    <div className="text-center">
-                      <p className="text-red-500 mb-2">生成试卷失败</p>
-                      <button 
-                        onClick={() => setActiveTab("config")} 
-                        className="text-blue-500 hover:text-blue-700 underline cursor-pointer"
-                      >
-                        请重新生成
-                      </button>
-                    </div>
-                  ) : (
-                    <p className="text-gray-500">请先配置并生成试卷</p>
-                  )}
+                  <p className="text-gray-500">请先配置并生成试卷</p>
                 </CardContent>
               </Card>
             )}
