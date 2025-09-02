@@ -8,19 +8,41 @@ import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Edit2, Save, X, Plus, Trash2 } from 'lucide-react'
+import { Edit2, Save, X, Plus, Trash2, Settings } from 'lucide-react'
 import { ThemeAndAllocationResult, ThemeScenarioWithAllocation } from '../actions/generate-theme-and-allocation'
 
+/**
+ * ThemeAllocationPreview组件的属性接口
+ * 扩展支持历史记录功能
+ */
 interface ThemeAllocationPreviewProps {
+  /** 主题场景数据或错误信息 */
   themeAndAllocation: ThemeAndAllocationResult | { error: boolean; errorMessage: string; errorType: string }
+  /** 数据更新回调 */
   onUpdate?: (updated: ThemeAndAllocationResult) => void
+  /** 关闭回调 */
   onClose?: () => void
+  /** 是否支持编辑模式 */
+  editable?: boolean
+  /** 是否显示应用按钮 */
+  showApplyButton?: boolean
+  /** 保存为新场景的回调 */
+  onSave?: (data: ThemeAndAllocationResult) => void
+  /** 应用到当前配置的回调 */
+  onApply?: (data: ThemeAndAllocationResult) => void
+  /** 是否为历史记录查看模式 */
+  isHistoryView?: boolean
 }
 
 export function ThemeAllocationPreview({ 
   themeAndAllocation, 
   onUpdate, 
-  onClose 
+  onClose,
+  editable = true,
+  showApplyButton = false,
+  onSave,
+  onApply,
+  isHistoryView = false
 }: ThemeAllocationPreviewProps) {
   // 检查是否为错误状态
   const isError = 'error' in themeAndAllocation && themeAndAllocation.error
@@ -30,15 +52,37 @@ export function ThemeAllocationPreview({
     isError ? {} as ThemeAndAllocationResult : themeAndAllocation as ThemeAndAllocationResult
   )
 
+  /**
+   * 处理保存操作
+   * 根据是否为历史记录模式选择不同的保存方式
+   */
   const handleSave = () => {
-    onUpdate?.(editedData)
+    if (isHistoryView && onSave) {
+      // 历史记录模式：保存为新场景
+      onSave(editedData)
+    } else {
+      // 普通模式：更新当前数据
+      onUpdate?.(editedData)
+    }
     setIsEditing(false)
   }
 
+  /**
+   * 处理取消编辑操作
+   */
   const handleCancel = () => {
     if (!isError) {
       setEditedData(themeAndAllocation as ThemeAndAllocationResult)
       setIsEditing(false)
+    }
+  }
+
+  /**
+   * 处理应用到当前配置操作
+   */
+  const handleApply = () => {
+    if (onApply) {
+      onApply(editedData)
     }
   }
 
@@ -137,16 +181,31 @@ export function ThemeAllocationPreview({
       {/* 头部操作栏 */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">主题场景预览</h2>
-          <p className="text-gray-600">查看和编辑生成的主题场景和知识点分配</p>
+          <h2 className="text-2xl font-bold">
+            {isHistoryView ? '历史主题场景' : '主题场景预览'}
+          </h2>
+          <p className="text-gray-600">
+            {isHistoryView ? '查看和编辑历史主题场景，可应用到当前配置' : '查看和编辑生成的主题场景和知识点分配'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {!isEditing ? (
             <>
-              <Button variant="outline" onClick={() => setIsEditing(true)}>
-                <Edit2 className="w-4 h-4 mr-2" />
-                编辑
-              </Button>
+              {/* 应用到当前配置按钮 */}
+              {showApplyButton && (
+                <Button onClick={handleApply} className="bg-blue-600 hover:bg-blue-700">
+                  <Settings className="w-4 h-4 mr-2" />
+                  应用到当前配置
+                </Button>
+              )}
+              {/* 编辑按钮 */}
+              {editable && (
+                <Button variant="outline" onClick={() => setIsEditing(true)}>
+                  <Edit2 className="w-4 h-4 mr-2" />
+                  编辑
+                </Button>
+              )}
+              {/* 关闭按钮 */}
               <Button onClick={onClose} variant="outline">
                 <X className="w-4 h-4 mr-2" />
                 关闭
@@ -154,10 +213,12 @@ export function ThemeAllocationPreview({
             </>
           ) : (
             <>
+              {/* 保存按钮 */}
               <Button onClick={handleSave}>
                 <Save className="w-4 h-4 mr-2" />
-                保存
+                {isHistoryView ? '保存为新场景' : '保存'}
               </Button>
+              {/* 取消按钮 */}
               <Button onClick={handleCancel} variant="outline">
                 <X className="w-4 h-4 mr-2" />
                 取消

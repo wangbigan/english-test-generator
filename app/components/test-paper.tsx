@@ -1,7 +1,11 @@
+import { useState } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Edit2, Save, X, Settings } from "lucide-react"
 import { GeneratedTest } from "@/app/types/shared"
 import { 
   MaterialSection, 
@@ -12,17 +16,127 @@ import {
   WarningBanner 
 } from "./test-paper-utils"
 
+/**
+ * TestPaper组件的属性接口
+ * 扩展支持历史记录功能
+ */
 interface TestPaperProps {
+  /** 试卷数据 */
   test: GeneratedTest
+  /** 是否为历史记录查看模式 */
+  isHistoryView?: boolean
+  /** 是否显示标题编辑功能 */
+  showTitle?: boolean
+  /** 标题编辑回调 */
+  onTitleEdit?: (newTitle: string) => void
+  /** 基于此试卷重新生成的回调 */
+  onRegenerate?: (testConfig: Record<string, unknown>) => void
+  /** 关闭回调 */
+  onClose?: () => void
 }
 
-export function TestPaper({ test }: TestPaperProps) {
+export function TestPaper({ 
+  test, 
+  isHistoryView = false, 
+  showTitle = false, 
+  onTitleEdit, 
+  onRegenerate, 
+  onClose 
+}: TestPaperProps) {
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editedTitle, setEditedTitle] = useState(test.title)
+
+  /**
+   * 处理标题保存
+   */
+  const handleTitleSave = () => {
+    if (onTitleEdit && editedTitle.trim()) {
+      onTitleEdit(editedTitle.trim())
+    }
+    setIsEditingTitle(false)
+  }
+
+  /**
+   * 处理标题取消编辑
+   */
+  const handleTitleCancel = () => {
+    setEditedTitle(test.title)
+    setIsEditingTitle(false)
+  }
+
+  /**
+   * 处理基于此试卷重新生成
+   */
+  const handleRegenerate = () => {
+    if (onRegenerate) {
+      // 从试卷数据中提取配置信息
+      const testConfig = {
+        // 这里需要根据试卷数据推断原始配置
+        // 实际实现时可能需要在试卷数据中保存原始配置
+        title: test.title,
+        subtitle: test.subtitle,
+        totalScore: test.totalScore
+      }
+      onRegenerate(testConfig)
+    }
+  }
+
   return (
-    <Tabs defaultValue="questions" className="w-full">
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="questions">试卷题目</TabsTrigger>
-        <TabsTrigger value="answers">答案解析</TabsTrigger>
-      </TabsList>
+    <div className="w-full">
+      {/* 历史记录模式的头部操作栏 */}
+      {isHistoryView && (
+        <div className="flex items-center justify-between mb-6 p-4 bg-gray-50 rounded-lg">
+          <div className="flex-1">
+            {showTitle && (
+              <div className="flex items-center gap-2">
+                {isEditingTitle ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <Input
+                      value={editedTitle}
+                      onChange={(e) => setEditedTitle(e.target.value)}
+                      className="flex-1 max-w-md"
+                      placeholder="输入试卷标题"
+                    />
+                    <Button size="sm" onClick={handleTitleSave}>
+                      <Save className="w-4 h-4" />
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={handleTitleCancel}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold">{test.title}</h3>
+                    <Button size="sm" variant="ghost" onClick={() => setIsEditingTitle(true)}>
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {/* 基于此试卷重新生成按钮 */}
+            <Button onClick={handleRegenerate} className="bg-green-600 hover:bg-green-700">
+              <Settings className="w-4 h-4 mr-2" />
+              基于此试卷重新生成
+            </Button>
+            {/* 关闭按钮 */}
+            {onClose && (
+              <Button onClick={onClose} variant="outline">
+                <X className="w-4 h-4 mr-2" />
+                关闭
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <Tabs defaultValue="questions" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="questions">试卷题目</TabsTrigger>
+          <TabsTrigger value="answers">答案解析</TabsTrigger>
+        </TabsList>
 
       <TabsContent value="questions">
         <Card className="max-w-4xl mx-auto">
@@ -185,5 +299,6 @@ export function TestPaper({ test }: TestPaperProps) {
         </Card>
       </TabsContent>
     </Tabs>
+    </div>
   )
 }

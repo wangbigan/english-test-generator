@@ -17,11 +17,13 @@ import { OpenAIConfigDialog } from "./components/openai-config-dialog"
 import { PromptConfigDialog } from "./components/prompt-config-dialog"
 import { FileUpload } from "./components/file-upload"
 import { ThemeAllocationPreview } from "./components/theme-allocation-preview"
+import { HistoryRecords } from "./components/history-records"
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
 // import { DEFAULT_TEMPLATES } from "./components/prompt-config-dialog"
 import { generateThemeAndAllocation, ThemeAndAllocationResult } from "./actions/generate-theme-and-allocation"
 
 import { TestConfig, GeneratedTest, PromptConfig, OpenAIConfig } from "./types/shared"
+import { historyManager } from "./utils/history-manager"
 
 export default function HomePage() {
   const [config, setConfig] = useState<TestConfig>({
@@ -73,6 +75,9 @@ export default function HomePage() {
   const [generatedTest, setGeneratedTest] = useState<GeneratedTest | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [activeTab, setActiveTab] = useState("config")
+  // 历史试卷相关状态
+  const [historyTest, setHistoryTest] = useState<GeneratedTest | null>(null)
+  const [isViewingHistory, setIsViewingHistory] = useState(false)
   const [promptText, setPromptText] = useState<string>("");
   const [rawResponseText, setRawResponseText] = useState<string>("");
   const [promptOpen, setPromptOpen] = useState<boolean>(false);
@@ -168,6 +173,19 @@ export default function HomePage() {
         if (result.themeAndAllocation && !themeAndAllocation) {
           setThemeAndAllocation(result.themeAndAllocation)
         }
+        
+        // 保存试卷生成历史记录
+        try {
+          const baseInfo = {
+            grade: config.grade,
+            difficulty: config.difficulty,
+            theme: config.theme,
+            knowledgePoints: config.knowledgePoints
+          }
+          historyManager.addRecord('test', baseInfo, result.test as GeneratedTest)
+        } catch (error) {
+          console.error('保存试卷历史记录失败:', error)
+        }
       }
       
       // 设置题型prompt和响应数据
@@ -214,11 +232,32 @@ export default function HomePage() {
     }
   }
 
+  /**
+   * 处理知识点提取成功
+   * @param points 提取的知识点
+   */
   const handleKnowledgePointsExtracted = (points: string) => {
     setConfig((prev) => ({
       ...prev,
       knowledgePoints: points,
     }))
+    
+    // 保存知识点提取历史记录
+    try {
+      const baseInfo = {
+        grade: config.grade,
+        difficulty: config.difficulty,
+        theme: config.theme,
+        knowledgePoints: points
+      }
+      const extractResult = {
+        extractedPoints: points,
+        extractedAt: new Date().toISOString()
+      }
+      historyManager.addRecord('extract', baseInfo, extractResult)
+    } catch (error) {
+      console.error('保存知识点提取历史记录失败:', error)
+    }
   }
 
   // 生成主题场景和知识点分配
@@ -246,6 +285,19 @@ export default function HomePage() {
       )
       setThemeAndAllocation(result)
       setShowThemePreview(true)
+      
+      // 保存主题场景生成历史记录
+      try {
+        const baseInfo = {
+          grade: config.grade,
+          difficulty: config.difficulty,
+          theme: config.theme,
+          knowledgePoints: config.knowledgePoints
+        }
+        historyManager.addRecord('theme', baseInfo, result)
+      } catch (error) {
+        console.error('保存主题场景历史记录失败:', error)
+      }
     } catch (error) {
       console.error("生成主题场景失败:", error)
       // 设置错误状态，让ThemeAllocationPreview组件显示错误信息
@@ -265,237 +317,361 @@ export default function HomePage() {
     setThemeAndAllocation(updated)
   }
 
-  const handleExport = (type: "pdf" | "json" | "word") => {
-    if (!generatedTest) {
-      alert("请先生成试卷")
+  /**
+   * 应用历史记录中的知识点到当前配置
+   * @param record 历史记录
+   */
+  const handleApplyKnowledgePoints = (record: Record<string, unknown>) => {
+    const baseInfo = record.baseInfo as { grade: string; difficulty: string; theme: string; knowledgePoints: string }
+    setConfig((prev) => ({
+      ...prev,
+      grade: baseInfo.grade,
+      difficulty: baseInfo.difficulty,
+      theme: baseInfo.theme,
+      knowledgePoints: baseInfo.knowledgePoints
+    }))
+    setActiveTab('config')
+  }
+
+  /**
+   * 应用历史记录中的主题场景到当前配置
+   * @param record 历史记录
+   */
+  const handleApplyThemeScenario = (record: Record<string, unknown>) => {
+    // 应用基础配置
+    const baseInfo = record.baseInfo as { grade: string; difficulty: string; theme: string; knowledgePoints: string }
+    setConfig((prev) => ({
+      ...prev,
+      grade: baseInfo.grade,
+      difficulty: baseInfo.difficulty,
+      theme: baseInfo.theme,
+      knowledgePoints: baseInfo.knowledgePoints
+    }))
+    
+    // 设置主题场景数据
+    setThemeAndAllocation(record.result as ThemeAndAllocationResult)
+    
+    // 切换到配置页面
+    setActiveTab('config')
+  }
+
+  /**
+   * 基于历史试卷重新生成
+   * @param record 历史记录
+   */
+  const handleRegenerateFromHistory = (record: Record<string, unknown>) => {
+    // 应用基础配置
+    const baseInfo = record.baseInfo as { grade: string; difficulty: string; theme: string; knowledgePoints: string }
+    setConfig((prev) => ({
+      ...prev,
+      grade: baseInfo.grade,
+      difficulty: baseInfo.difficulty,
+      theme: baseInfo.theme,
+      knowledgePoints: baseInfo.knowledgePoints
+    }))
+    
+    // 切换到配置页面
+    setActiveTab('config')
+  }
+
+  /**
+   * 预览历史试卷
+   * @param record 历史记录
+   */
+  const handlePreviewHistoryTest = (record: Record<string, unknown>) => {
+    console.log('预览历史试卷 - 原始记录数据:', record)
+    
+    // 验证历史记录数据的完整性
+    const result = record.result as GeneratedTest
+    
+    if (!result) {
+      alert('历史记录数据异常：缺少试卷内容')
       return
+    }
+    
+    // 验证必要的属性
+    if (!result.title) {
+      console.warn('历史记录缺少标题，使用默认值')
+      result.title = '历史试卷'
+    }
+    
+    if (!Array.isArray(result.sections)) {
+      console.warn('历史记录缺少sections数组，使用空数组')
+      result.sections = []
+    }
+    
+    // 验证每个section的完整性
+    result.sections = result.sections.map((section, index) => {
+      if (!section.title) {
+        section.title = `第${index + 1}部分`
+      }
+      if (!Array.isArray(section.questions)) {
+        section.questions = []
+      }
+      // 验证每个问题的完整性
+      section.questions = section.questions.map((q, qIndex) => {
+        if (!q.question) {
+          q.question = `题目 ${qIndex + 1}`
+        }
+        if (typeof q.points !== 'number') {
+          q.points = 5
+        }
+        return q
+      })
+      return section
+    })
+    
+    // 确保totalScore存在
+    if (typeof result.totalScore !== 'number') {
+      result.totalScore = result.sections.reduce((total, section) => {
+        return total + (Array.isArray(section.questions) ? 
+          section.questions.reduce((sum, q) => sum + (q.points || 0), 0) : 0)
+      }, 0) || 100
+    }
+    
+    console.log('验证后的历史试卷数据:', result)
+    
+    // 设置历史试卷数据
+    setHistoryTest(result)
+    setIsViewingHistory(true)
+    
+    // 切换到预览标签页
+    setActiveTab('preview')
+  }
+
+  /**
+   * 处理导出功能
+   * @param type - 导出类型：pdf、json、word
+   */
+  const handleExport = (type: "pdf" | "json" | "word") => {
+    const currentTest = isViewingHistory ? historyTest : generatedTest
+    
+    console.log('导出功能调用:', {
+      type,
+      isViewingHistory,
+      hasHistoryTest: !!historyTest,
+      hasGeneratedTest: !!generatedTest,
+      currentTest: currentTest
+    })
+    
+    if (!currentTest) {
+      const message = isViewingHistory ? "历史试卷数据异常，无法导出" : "请先生成试卷"
+      alert(message)
+      return
+    }
+    
+    // 对历史记录数据进行额外验证
+    if (isViewingHistory) {
+      if (!currentTest.title || !Array.isArray(currentTest.sections)) {
+        alert('历史试卷数据不完整，无法导出。请返回重新生成试卷。')
+        return
+      }
+      console.log('历史试卷验证通过，开始导出')
     }
 
     switch (type) {
       case "pdf":
-        // 使用浏览器的打印功能生成PDF，包含答案解析
-        const printWindow = window.open("", "_blank")
-        if (printWindow) {
-          printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <title>${generatedTest.title}</title>
-              <style>
-                body { 
-                  font-family: Arial, sans-serif; 
-                  margin: 20px; 
-                  line-height: 1.6;
-                }
-                .header { 
-                  text-align: center; 
-                  margin-bottom: 30px; 
-                  border-bottom: 2px solid #333;
-                  padding-bottom: 20px;
-                }
-                .section { 
-                  margin-bottom: 30px; 
-                  page-break-inside: avoid;
-                }
-                .question { 
-                  margin-bottom: 20px; 
-                  padding: 10px;
-                  border-left: 3px solid #007bff;
-                  background-color: #f8f9fa;
-                }
-                .options { 
-                  margin-left: 20px; 
-                  margin-top: 10px;
-                }
-                .option-item {
-                  margin-bottom: 5px;
-                }
-                .listening-material {
-                  background-color: #e3f2fd;
-                  padding: 15px;
-                  border-radius: 5px;
-                  margin-bottom: 20px;
-                  border-left: 4px solid #2196f3;
-                }
-                .answer-section {
-                  page-break-before: always;
-                  margin-top: 40px;
-                }
-                .answer-item {
-                  margin-bottom: 20px;
-                  padding: 15px;
-                  border-left: 4px solid #4caf50;
-                  background-color: #f1f8e9;
-                }
-                .answer-header {
-                  font-weight: bold;
-                  color: #2e7d32;
-                  margin-bottom: 8px;
-                }
-                .explanation {
-                  color: #555;
-                  font-size: 14px;
-                  line-height: 1.5;
-                }
-                @media print { 
-                  body { margin: 0; }
-                  .page-break { page-break-before: always; }
-                }
-              </style>
-            </head>
-            <body>
-              <!-- 试卷题目部分 -->
-              <div class="header">
-                <div style="background: #fffbe6; border-left: 4px solid #ffe58f; color: #ad8b00; padding: 10px 16px; border-radius: 4px; margin-bottom: 18px; font-size: 15px;">
-                  本试卷内容由AI大模型自动生成，仅供参考。
-                </div>
-                <h1>${generatedTest.title}</h1>
-                <p style="font-size: 18px; color: #666;">${generatedTest.subtitle}</p>
-                <div style="display: flex; justify-content: space-between; margin-top: 20px; font-size: 14px;">
-                  <span>姓名：_______________</span>
-                  <span>班级：_______________</span>
-                  <span>学号：_______________</span>
-                  <span style="font-weight: bold;">总分：${generatedTest.totalScore}分</span>
-                </div>
-                <div style="margin-top: 15px; text-align: left; background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
-                  <strong>考试说明：</strong>
-                  <p style="margin-top: 8px;">${generatedTest.instructions}</p>
-                </div>
+        try {
+          console.log('开始PDF导出流程')
+          
+          // 检测浏览器是否支持window.open
+          let printWindow: Window | null = null
+          try {
+            printWindow = window.open("", "_blank", "width=800,height=600")
+          } catch (error) {
+            console.error('window.open失败:', error)
+          }
+          
+          // 检查弹窗是否被阻止
+          if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
+            console.warn('弹窗被阻止，尝试备用方案')
+            alert('浏览器阻止了弹窗，请允许弹窗后重试，或者使用下载Word功能作为替代方案。')
+            return
+          }
+          
+          // 生成完整的HTML内容
+          const safeTitle = (currentTest.title || '英语试卷').replace(/["'<>&]/g, (char) => {
+            const entities = { '"': '&quot;', "'": '&#39;', '<': '&lt;', '>': '&gt;', '&': '&amp;' }
+            return entities[char] || char
+          })
+          const safeSubtitle = (currentTest.subtitle || '').replace(/["'<>&]/g, (char) => {
+            const entities = { '"': '&quot;', "'": '&#39;', '<': '&lt;', '>': '&gt;', '&': '&amp;' }
+            return entities[char] || char
+          })
+          
+          // 生成主题信息HTML
+          const generateThemeInfoHTML = (test: typeof currentTest) => {
+            if (!test.mainTheme && !test.backgroundDescription) return ""
+            return `
+              <div style="background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #4a90e2; text-align: left;">
+                <h3 style="color: #4a90e2; margin-bottom: 10px; font-size: 16px;">📚 主题背景</h3>
+                ${test.mainTheme ? `<p style="margin-bottom: 8px;"><strong>主题：</strong>${test.mainTheme}</p>` : ""}
+                ${test.backgroundDescription ? `<p style="margin: 0; color: #555;">${test.backgroundDescription}</p>` : ""}
               </div>
-
-              ${
-                generatedTest.listeningMaterial
-                  ? `
-                <div class="listening-material">
-                  <h3 style="color: #1976d2; margin-bottom: 10px;">听力材料</h3>
-                  <div style="white-space: pre-line;">${generatedTest.listeningMaterial}</div>
-                </div>
-              `
-                  : ""
+            `
+          }
+          
+          // 生成场景信息HTML
+          const generateScenarioInfoHTML = (section: typeof currentTest.sections[0]) => {
+            if (!section.scenarioTitle && !section.scenarioDescription) return ""
+            return `
+              <div style="background-color: #fff5f5; padding: 12px; border-radius: 4px; margin: 10px 0; border-left: 3px solid #e53e3e; font-size: 14px;">
+                <h4 style="color: #e53e3e; margin-bottom: 8px; font-size: 14px;">🎭 主题场景</h4>
+                ${section.scenarioTitle ? `<p style="margin-bottom: 6px;"><strong>场景：</strong>${section.scenarioTitle}</p>` : ""}
+                ${section.scenarioDescription ? `<p style="margin-bottom: 6px; color: #555;">${section.scenarioDescription}</p>` : ""}
+                ${section.scenarioKnowledgePoints && section.scenarioKnowledgePoints.length > 0 ? 
+                  `<p style="margin: 0; font-size: 12px;"><strong>涉及知识点：</strong>${section.scenarioKnowledgePoints.join('、')}</p>` : ""}
+              </div>
+            `
+          }
+          
+          const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${safeTitle}</title>
+  <style>
+    body { font-family: 'Microsoft YaHei', Arial, sans-serif; margin: 20px; line-height: 1.6; color: #333; }
+    .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+    .info-row { display: flex; justify-content: space-between; margin: 15px 0; font-size: 14px; }
+    .section { margin-bottom: 30px; page-break-inside: avoid; }
+    .section-title { color: #333; border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 15px; }
+    .question { margin-bottom: 20px; padding: 10px; border-left: 3px solid #007bff; background-color: #f8f9fa; }
+    .options { margin-left: 20px; margin-top: 10px; }
+    .option { margin-bottom: 5px; }
+    .listening-material { background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #2196f3; }
+    @media print { body { margin: 0; } .header { page-break-after: avoid; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${safeTitle}</h1>
+    ${safeSubtitle ? `<p style="font-size: 18px; color: #666;">${safeSubtitle}</p>` : ''}
+    ${generateThemeInfoHTML(currentTest)}
+    <div class="info-row">
+      <span>姓名：_______________</span>
+      <span>班级：_______________</span>
+      <span>学号：_______________</span>
+      <span style="font-weight: bold;">总分：${currentTest.totalScore || 100}分</span>
+    </div>
+    ${currentTest.instructions ? `<div style="text-align: left; background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin-top: 15px;"><strong>考试说明：</strong><p style="margin-top: 8px;">${currentTest.instructions}</p></div>` : ''}
+  </div>
+  
+  ${currentTest.listeningMaterial ? `<div class="listening-material"><h3 style="color: #1976d2; margin-bottom: 10px;">听力材料</h3><div style="white-space: pre-line;">${currentTest.listeningMaterial}</div></div>` : ''}
+  
+  ${currentTest.sections.map((section) => {
+    const sectionQuestions = Array.isArray(section.questions) ? section.questions : []
+    const sectionScore = sectionQuestions.reduce((sum, q) => sum + (q.points || 0), 0)
+    return `<div class="section">
+      <h2 class="section-title">${section.title} <span style="font-size: 14px; color: #666; font-weight: normal;">(${sectionQuestions.length}题，共${sectionScore}分)</span></h2>
+      ${generateScenarioInfoHTML(section)}
+      ${sectionQuestions.map((q, qIndex) => {
+        const questionText = (q.question || '').replace(/["'<>&]/g, (char) => {
+          const entities = { '"': '&quot;', "'": '&#39;', '<': '&lt;', '>': '&gt;', '&': '&amp;' }
+          return entities[char] || char
+        })
+        return `<div class="question">
+          <p style="margin-bottom: 10px;"><strong>${qIndex + 1}. ${questionText}</strong> <span style="color: #007bff; font-size: 12px;">(${q.points || 0}分)</span></p>
+          ${q.options ? `<div class="options">${q.options.map((opt, optIndex) => {
+            const safeOpt = (opt || '').replace(/["'<>&]/g, (char) => {
+              const entities = { '"': '&quot;', "'": '&#39;', '<': '&lt;', '>': '&gt;', '&': '&amp;' }
+              return entities[char] || char
+            })
+            return `<div class="option"><strong>${String.fromCharCode(65 + optIndex)}.</strong> ${safeOpt}</div>`
+          }).join('')}</div>` : '<div style="margin-top: 10px;"><span style="color: #666; font-size: 14px;">答案：</span><span style="border-bottom: 1px solid #333; display: inline-block; width: 200px; height: 20px;"></span></div>'}
+        </div>`
+      }).join('')}
+    </div>`
+  }).join('')}
+</body>
+</html>`
+          
+          // 写入HTML内容
+          try {
+            printWindow.document.open()
+            printWindow.document.write(htmlContent)
+            printWindow.document.close()
+            
+            // 延迟打印
+            setTimeout(() => {
+              if (printWindow && !printWindow.closed) {
+                printWindow.print()
               }
-
-              ${generatedTest.sections
-                .map(
-                  (section) => `
-                <div class="section">
-                  <h2 style="color: #333; border-bottom: 1px solid #ddd; padding-bottom: 10px;">
-                    ${section.title} 
-                    <span style="font-size: 14px; color: #666; font-weight: normal;">
-                      (${Array.isArray(section.questions) ? section.questions.length : 0}题，共${Array.isArray(section.questions) ? section.questions.reduce((sum, q) => sum + q.points, 0) : 0}分)
-                    </span>
-                  </h2>
-                  ${Array.isArray(section.questions)
-                    ? section.questions
-                        .map(
-                          (q, i) => `
-                    <div class="question">
-                      <p style="margin-bottom: 10px;">
-                        <strong>${i + 1}. ${q.question}</strong> 
-                        <span style="color: #007bff; font-size: 12px;">(${q.points}分)</span>
-                      </p>
-                      ${
-                        q.options
-                          ? `
-                        <div class="options">
-                          ${q.options
-                            .map(
-                              (opt, j) => `
-                            <div class="option-item">
-                              <strong>${String.fromCharCode(65 + j)}.</strong> ${opt}
-                            </div>
-                          `,
-                            )
-                            .join("")}
-                        </div>
-                      `
-                          : `
-                        <div style="margin-top: 10px;">
-                          <span style="color: #666; font-size: 14px;">答案：</span>
-                          <span style="border-bottom: 1px solid #333; display: inline-block; width: 200px; height: 20px;"></span>
-                        </div>
-                      `
-                      }
-                    </div>
-                  `,
-                        )
-                        .join("")
-                    : ""
-                  }
-                </div>
-              `,
-                )
-                .join("")}
-
-              <!-- 答案解析部分 -->
-              <div class="answer-section page-break">
-                <div class="header">
-                  <div style="background: #fffbe6; border-left: 4px solid #ffe58f; color: #ad8b00; padding: 10px 16px; border-radius: 4px; margin-bottom: 18px; font-size: 15px;">
-                    本试卷内容由AI大模型自动生成，仅供参考。
-                  </div>
-                  <h1>答案与解析</h1>
-                  <p style="font-size: 18px; color: #666;">${generatedTest.title}</p>
-                </div>
-                ${(() => {
-                  let qNum = 1;
-                  let html = "";
-                  generatedTest.sections.forEach(section => {
-                    if (Array.isArray(section.questions)) {
-                      section.questions.forEach(q => {
-                        html += `
-                  <div class="answer-item">
-                    <div class="answer-header">
-                      第${qNum++}题 - 答案：${q.answer ?? "-"}
-                    </div>
-                    <div class="explanation">${q.explanation ?? "-"}</div>
-                  </div>
-                        `;
-                      });
-                    }
-                  });
-                  return html;
-                })()}
-              </div>
-            </body>
-            </html>
-          `)
-          printWindow.document.close()
-          printWindow.print()
+            }, 1000)
+            
+          } catch (writeError) {
+            console.error('HTML写入失败:', writeError)
+            alert('PDF生成失败，请尝试使用Word导出功能作为替代方案。')
+            if (printWindow && !printWindow.closed) {
+              printWindow.close()
+            }
+          }
+        } catch (error) {
+          console.error('PDF导出失败:', error)
+          alert("PDF导出失败，请重试")
         }
         break
       case "word":
+        // 生成Word格式的主题信息
+        const generateWordThemeInfo = (test: typeof currentTest) => {
+          if (!test.mainTheme && !test.backgroundDescription) return ""
+          return `
+            <div style="background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #4a90e2; text-align: left;">
+              <h3 style="color: #4a90e2; margin-bottom: 10px; font-size: 16px;">📚 主题背景</h3>
+              ${test.mainTheme ? `<p style="margin-bottom: 8px;"><strong>主题：</strong>${test.mainTheme}</p>` : ""}
+              ${test.backgroundDescription ? `<p style="margin: 0; color: #555;">${test.backgroundDescription}</p>` : ""}
+            </div>
+          `
+        }
+        
+        // 生成Word格式的场景信息
+        const generateWordScenarioInfo = (section: typeof currentTest.sections[0]) => {
+          if (!section.scenarioTitle && !section.scenarioDescription) return ""
+          return `
+            <div style="background-color: #fff5f5; padding: 12px; border-radius: 4px; margin: 10px 0; border-left: 3px solid #e53e3e; font-size: 14px;">
+              <h4 style="color: #e53e3e; margin-bottom: 8px; font-size: 14px;">🎭 场景设定</h4>
+              ${section.scenarioTitle ? `<p style="margin-bottom: 6px;"><strong>场景：</strong>${section.scenarioTitle}</p>` : ""}
+              ${section.scenarioDescription ? `<p style="margin-bottom: 6px; color: #555;">${section.scenarioDescription}</p>` : ""}
+              ${section.scenarioKnowledgePoints && section.scenarioKnowledgePoints.length > 0 ? 
+                `<p style="margin: 0; font-size: 12px;"><strong>涉及知识点：</strong>${section.scenarioKnowledgePoints.join('、')}</p>` : ""}
+            </div>
+          `
+        }
+        
         // 导出Word文档（简单版：用HTML转Blob，后续可升级为真正的docx）
         const wordHtml = `
           <!DOCTYPE html>
           <html>
           <head>
             <meta charset="utf-8" />
-            <title>${generatedTest.title}</title>
+            <title>${currentTest.title}</title>
           </head>
           <body>
             <div style="background: #fffbe6; border-left: 4px solid #ffe58f; color: #ad8b00; padding: 10px 16px; border-radius: 4px; margin-bottom: 18px; font-size: 15px;">
               本试卷内容由AI大模型自动生成，仅供参考。
             </div>
-            <h1 style="text-align:center;">${generatedTest.title}</h1>
-            <p style="text-align:center; font-size: 18px; color: #666;">${generatedTest.subtitle}</p>
+            <h1 style="text-align:center;">${currentTest.title}</h1>
+            <p style="text-align:center; font-size: 18px; color: #666;">${currentTest.subtitle}</p>
+            ${generateWordThemeInfo(currentTest)}
             <div style="display: flex; justify-content: space-between; margin-top: 20px; font-size: 14px;">
               <span>姓名：_______________</span>
               <span>班级：_______________</span>
               <span>学号：_______________</span>
-              <span style="font-weight: bold;">总分：${generatedTest.totalScore}分</span>
+              <span style="font-weight: bold;">总分：${currentTest.totalScore}分</span>
             </div>
             <div style="margin-top: 15px; text-align: left; background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
               <strong>考试说明：</strong>
-              <p style="margin-top: 8px;">${generatedTest.instructions}</p>
+              <p style="margin-top: 8px;">${currentTest.instructions}</p>
             </div>
             ${
-              generatedTest.listeningMaterial
+              currentTest.listeningMaterial
                 ? `<div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #2196f3;">
                     <h3 style="color: #1976d2; margin-bottom: 10px;">听力材料</h3>
-                    <div style="white-space: pre-line;">${generatedTest.listeningMaterial}</div>
+                    <div style="white-space: pre-line;">${currentTest.listeningMaterial}</div>
                   </div>`
                 : ""
             }
-            ${generatedTest.sections
+            ${currentTest.sections
               .map(
                 (section) => `
                   <div style="margin-bottom: 30px;">
@@ -505,6 +681,7 @@ export default function HomePage() {
                         (${Array.isArray(section.questions) ? section.questions.length : 0}题，共${Array.isArray(section.questions) ? section.questions.reduce((sum, q) => sum + q.points, 0) : 0}分)
                       </span>
                     </h2>
+                    ${generateWordScenarioInfo(section)}
                     ${Array.isArray(section.questions)
                       ? section.questions
                           .map(
@@ -537,11 +714,11 @@ export default function HomePage() {
               本试卷内容由AI大模型自动生成，仅供参考。
             </div>
             <h1>答案与解析</h1>
-            <p style="font-size: 18px; color: #666;">${generatedTest.title}</p>
+            <p style="font-size: 18px; color: #666;">${currentTest.title}</p>
             ${(() => {
               let qNum = 1;
               let html = "";
-              generatedTest.sections.forEach(section => {
+              currentTest.sections.forEach(section => {
                 if (Array.isArray(section.questions)) {
                   section.questions.forEach(q => {
                     html += `
@@ -562,7 +739,9 @@ export default function HomePage() {
         const wordUrl = URL.createObjectURL(wordBlob);
         const wordLink = document.createElement("a");
         wordLink.href = wordUrl;
-        wordLink.download = `${generatedTest.title.replace(/[^ -\u4e00-\u9fa5]/g, "")}_试卷.doc`;
+        // 生成安全的文件名，只过滤文件系统不允许的字符
+        const safeTitle = (currentTest.title || "英语试卷").replace(/[/\\:*?"<>|]/g, "").trim() || "英语试卷";
+        wordLink.download = `${safeTitle}_试卷.doc`;
         document.body.appendChild(wordLink);
         wordLink.click();
         document.body.removeChild(wordLink);
@@ -571,7 +750,7 @@ export default function HomePage() {
       case "json":
         // 下载完整的JSON文件，包含所有数据
         const completeData = {
-          ...generatedTest,
+          ...currentTest,
           exportTime: new Date().toISOString(),
           config: {
             grade: config.grade,
@@ -586,7 +765,9 @@ export default function HomePage() {
         const url = URL.createObjectURL(dataBlob)
         const link = document.createElement("a")
         link.href = url
-        link.download = `${generatedTest.title.replace(/[^\w\s]/gi, "")}_完整数据.json`
+        // 生成安全的文件名，只过滤文件系统不允许的字符
+        const safeTitleForJson = (currentTest.title || "英语试卷").replace(/[/\\:*?"<>|]/g, "").trim() || "英语试卷";
+        link.download = `${safeTitleForJson}_完整数据.json`
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
@@ -634,7 +815,7 @@ export default function HomePage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="config" className="flex items-center gap-2">
               <Settings className="w-4 h-4" />
               试卷配置
@@ -642,6 +823,10 @@ export default function HomePage() {
             <TabsTrigger value="preview" className="flex items-center gap-2">
               <FileText className="w-4 h-4" />
               试卷预览
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4" />
+              历史记录
             </TabsTrigger>
             <TabsTrigger value="export" className="flex items-center gap-2">
               <Download className="w-4 h-4" />
@@ -862,9 +1047,36 @@ export default function HomePage() {
           </TabsContent>
 
           <TabsContent value="preview">
-            {generatedTest && !('error' in generatedTest) ? (
-              <TestPaper test={generatedTest} />
-            ) : generatedTest && 'error' in generatedTest ? (
+            {/* 历史试卷查看提示 */}
+            {isViewingHistory && historyTest && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-blue-600" />
+                    <span className="text-blue-800 font-medium">正在查看历史试卷</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setIsViewingHistory(false)
+                      setHistoryTest(null)
+                    }}
+                    className="text-blue-600 border-blue-300 hover:bg-blue-100"
+                  >
+                    返回当前试卷
+                  </Button>
+                </div>
+                <p className="text-blue-700 text-sm mt-2">
+                  您可以使用下方的导出功能下载此历史试卷，或点击&quot;返回当前试卷&quot;查看最新生成的试卷。
+                </p>
+              </div>
+            )}
+            
+            {/* 显示试卷内容 */}
+            {(isViewingHistory ? historyTest : generatedTest) && !((isViewingHistory ? historyTest : generatedTest) && 'error' in (isViewingHistory ? historyTest! : generatedTest!)) ? (
+              <TestPaper test={isViewingHistory ? historyTest! : generatedTest!} />
+            ) : (isViewingHistory ? historyTest : generatedTest) && 'error' in (isViewingHistory ? historyTest! : generatedTest!) ? (
               <Card className="border-red-200 bg-red-50">
                 <CardContent className="py-12">
                   <div className="text-center mb-6">
@@ -929,7 +1141,11 @@ export default function HomePage() {
                     
                     <div className="text-center">
                       <Button 
-                        onClick={() => setActiveTab("config")} 
+                        onClick={() => {
+                          setActiveTab("config")
+                          setIsViewingHistory(false)
+                          setHistoryTest(null)
+                        }} 
                         className="bg-blue-600 hover:bg-blue-700 text-white"
                       >
                         返回配置页面重新生成
@@ -942,10 +1158,32 @@ export default function HomePage() {
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <FileText className="w-16 h-16 text-gray-400 mb-4" />
-                  <p className="text-gray-500">请先配置并生成试卷</p>
+                  <p className="text-gray-500">
+                    {isViewingHistory ? "历史试卷数据异常" : "请先配置并生成试卷"}
+                  </p>
+                  {isViewingHistory && (
+                    <Button
+                      className="mt-4"
+                      onClick={() => {
+                        setIsViewingHistory(false)
+                        setHistoryTest(null)
+                      }}
+                    >
+                      返回当前试卷
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="history">
+            <HistoryRecords
+              onApplyKnowledgePoints={handleApplyKnowledgePoints}
+              onApplyThemeScenario={handleApplyThemeScenario}
+              onRegenerateFromHistory={handleRegenerateFromHistory}
+              onPreviewHistoryTest={handlePreviewHistoryTest}
+            />
           </TabsContent>
 
           <TabsContent value="export">
@@ -955,10 +1193,36 @@ export default function HomePage() {
                 <CardDescription>选择导出格式和选项</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {!generatedTest ? (
+                {/* 历史试卷导出提示 */}
+                {isViewingHistory && historyTest && (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      <span className="text-blue-800 text-sm font-medium">正在导出历史试卷</span>
+                    </div>
+                    <p className="text-blue-700 text-xs mt-1">
+                      当前导出的是历史试卷内容，如需导出最新生成的试卷，请先返回当前试卷。
+                    </p>
+                  </div>
+                )}
+                
+                {!(isViewingHistory ? historyTest : generatedTest) ? (
                   <div className="text-center py-8">
                     <FileText className="w-16 h-16 text-gray-400 mb-4 mx-auto" />
-                    <p className="text-gray-500">请先生成试卷后再导出</p>
+                    <p className="text-gray-500">
+                      {isViewingHistory ? "历史试卷数据异常，无法导出" : "请先生成试卷后再导出"}
+                    </p>
+                    {isViewingHistory && (
+                      <Button
+                        className="mt-4"
+                        onClick={() => {
+                          setIsViewingHistory(false)
+                          setHistoryTest(null)
+                        }}
+                      >
+                        返回当前试卷
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   <>

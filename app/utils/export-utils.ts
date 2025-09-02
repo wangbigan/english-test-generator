@@ -24,6 +24,22 @@ function generatePDFTemplate(test: GeneratedTest): string {
           border-bottom: 2px solid #333;
           padding-bottom: 20px;
         }
+        .theme-info {
+          background-color: #f0f8ff;
+          padding: 15px;
+          border-radius: 5px;
+          margin: 20px 0;
+          border-left: 4px solid #4a90e2;
+          text-align: left;
+        }
+        .scenario-info {
+          background-color: #fff5f5;
+          padding: 12px;
+          border-radius: 4px;
+          margin: 10px 0;
+          border-left: 3px solid #e53e3e;
+          font-size: 14px;
+        }
         .section { 
           margin-bottom: 30px; 
           page-break-inside: avoid;
@@ -82,6 +98,7 @@ function generatePDFTemplate(test: GeneratedTest): string {
         </div>
         <h1>${test.title}</h1>
         <p style="font-size: 18px; color: #666;">${test.subtitle}</p>
+        ${generateThemeInfoHTML(test)}
         <div style="display: flex; justify-content: space-between; margin-top: 20px; font-size: 14px;">
           <span>姓名：_______________</span>
           <span>班级：_______________</span>
@@ -119,6 +136,42 @@ function generateListeningMaterialHTML(listeningMaterial?: string): string {
 }
 
 /**
+ * 生成主题信息HTML
+ * @param test - 试卷数据
+ * @returns HTML字符串
+ */
+function generateThemeInfoHTML(test: GeneratedTest): string {
+  if (!test.mainTheme && !test.backgroundDescription) return ""
+  
+  return `
+    <div class="theme-info">
+      <h3 style="color: #4a90e2; margin-bottom: 10px; font-size: 16px;">📚 主题背景</h3>
+      ${test.mainTheme ? `<p style="margin-bottom: 8px;"><strong>主题：</strong>${test.mainTheme}</p>` : ""}
+      ${test.backgroundDescription ? `<p style="margin: 0; color: #555;">${test.backgroundDescription}</p>` : ""}
+    </div>
+  `
+}
+
+/**
+ * 生成场景信息HTML
+ * @param section - section数据
+ * @returns HTML字符串
+ */
+function generateScenarioInfoHTML(section: GeneratedTest['sections'][0]): string {
+  if (!section.scenarioTitle && !section.scenarioDescription) return ""
+  
+  return `
+    <div class="scenario-info">
+      <h4 style="color: #e53e3e; margin-bottom: 8px; font-size: 14px;">🎭 场景设定</h4>
+      ${section.scenarioTitle ? `<p style="margin-bottom: 6px;"><strong>场景：</strong>${section.scenarioTitle}</p>` : ""}
+      ${section.scenarioDescription ? `<p style="margin-bottom: 6px; color: #555;">${section.scenarioDescription}</p>` : ""}
+      ${section.scenarioKnowledgePoints && section.scenarioKnowledgePoints.length > 0 ? 
+        `<p style="margin: 0; font-size: 12px;"><strong>涉及知识点：</strong>${section.scenarioKnowledgePoints.join('、')}</p>` : ""}
+    </div>
+  `
+}
+
+/**
  * 生成试卷sections的HTML
  * @param sections - 试卷sections数组
  * @returns HTML字符串
@@ -134,6 +187,7 @@ function generateSectionsHTML(sections: GeneratedTest['sections']): string {
               (${Array.isArray(section.questions) ? section.questions.length : 0}题，共${Array.isArray(section.questions) ? section.questions.reduce((sum: number, q) => sum + q.points, 0) : 0}分)
             </span>
           </h2>
+          ${generateScenarioInfoHTML(section)}
           ${generateQuestionsHTML(section.questions)}
         </div>
       `
@@ -252,6 +306,7 @@ function generateWordTemplate(test: GeneratedTest): string {
       </div>
       <h1 style="text-align:center;">${test.title}</h1>
       <p style="text-align:center; font-size: 18px; color: #666;">${test.subtitle}</p>
+      ${generateWordThemeInfo(test)}
       <div style="display: flex; justify-content: space-between; margin-top: 20px; font-size: 14px;">
         <span>姓名：_______________</span>
         <span>班级：_______________</span>
@@ -285,6 +340,42 @@ function generateWordListeningMaterial(listeningMaterial?: string): string {
 }
 
 /**
+ * 生成Word格式的主题信息
+ * @param test - 试卷数据
+ * @returns HTML字符串
+ */
+function generateWordThemeInfo(test: GeneratedTest): string {
+  if (!test.mainTheme && !test.backgroundDescription) return ""
+  
+  return `
+    <div style="background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #4a90e2; text-align: left;">
+      <h3 style="color: #4a90e2; margin-bottom: 10px; font-size: 16px;">📚 主题背景</h3>
+      ${test.mainTheme ? `<p style="margin-bottom: 8px;"><strong>主题：</strong>${test.mainTheme}</p>` : ""}
+      ${test.backgroundDescription ? `<p style="margin: 0; color: #555;">${test.backgroundDescription}</p>` : ""}
+    </div>
+  `
+}
+
+/**
+ * 生成Word格式的场景信息
+ * @param section - section数据
+ * @returns HTML字符串
+ */
+function generateWordScenarioInfo(section: GeneratedTest['sections'][0]): string {
+  if (!section.scenarioTitle && !section.scenarioDescription) return ""
+  
+  return `
+    <div style="background-color: #fff5f5; padding: 12px; border-radius: 4px; margin: 10px 0; border-left: 3px solid #e53e3e; font-size: 14px;">
+      <h4 style="color: #e53e3e; margin-bottom: 8px; font-size: 14px;">🎭 场景设定</h4>
+      ${section.scenarioTitle ? `<p style="margin-bottom: 6px;"><strong>场景：</strong>${section.scenarioTitle}</p>` : ""}
+      ${section.scenarioDescription ? `<p style="margin-bottom: 6px; color: #555;">${section.scenarioDescription}</p>` : ""}
+      ${section.scenarioKnowledgePoints && section.scenarioKnowledgePoints.length > 0 ? 
+        `<p style="margin: 0; font-size: 12px;"><strong>涉及知识点：</strong>${section.scenarioKnowledgePoints.join('、')}</p>` : ""}
+    </div>
+  `
+}
+
+/**
  * 生成Word格式的sections
  */
 function generateWordSections(sections: GeneratedTest['sections']): string {
@@ -298,6 +389,7 @@ function generateWordSections(sections: GeneratedTest['sections']): string {
               (${Array.isArray(section.questions) ? section.questions.length : 0}题，共${Array.isArray(section.questions) ? section.questions.reduce((sum: number, q) => sum + q.points, 0) : 0}分)
             </span>
           </h2>
+          ${generateWordScenarioInfo(section)}
           ${generateWordQuestions(section.questions)}
         </div>
       `
