@@ -22,7 +22,7 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/
 // import { DEFAULT_TEMPLATES } from "./components/prompt-config-dialog"
 import { generateThemeAndAllocation, ThemeAndAllocationResult } from "./actions/generate-theme-and-allocation"
 
-import { TestConfig, GeneratedTest, PromptConfig, OpenAIConfig } from "./types/shared"
+import { TestConfig, GeneratedTest, PromptConfig, OpenAIConfig, ExtractResult, HistoryRecord } from "./types/shared"
 import { historyManager } from "./utils/history-manager"
 
 export default function HomePage() {
@@ -250,9 +250,9 @@ export default function HomePage() {
         theme: config.theme,
         knowledgePoints: points
       }
-      const extractResult = {
-        extractedPoints: points,
-        extractedAt: new Date().toISOString()
+      const extractResult: ExtractResult = {
+        originalText: '', // 原始文档文本，这里暂时为空字符串
+        extractedPoints: points
       }
       historyManager.addRecord('extract', baseInfo, extractResult)
     } catch (error) {
@@ -321,7 +321,7 @@ export default function HomePage() {
    * 应用历史记录中的知识点到当前配置
    * @param record 历史记录
    */
-  const handleApplyKnowledgePoints = (record: Record<string, unknown>) => {
+  const handleApplyKnowledgePoints = (record: HistoryRecord) => {
     const baseInfo = record.baseInfo as { grade: string; difficulty: string; theme: string; knowledgePoints: string }
     setConfig((prev) => ({
       ...prev,
@@ -337,7 +337,7 @@ export default function HomePage() {
    * 应用历史记录中的主题场景到当前配置
    * @param record 历史记录
    */
-  const handleApplyThemeScenario = (record: Record<string, unknown>) => {
+  const handleApplyThemeScenario = (record: HistoryRecord) => {
     // 应用基础配置
     const baseInfo = record.baseInfo as { grade: string; difficulty: string; theme: string; knowledgePoints: string }
     setConfig((prev) => ({
@@ -359,7 +359,7 @@ export default function HomePage() {
    * 基于历史试卷重新生成
    * @param record 历史记录
    */
-  const handleRegenerateFromHistory = (record: Record<string, unknown>) => {
+  const handleRegenerateFromHistory = (record: HistoryRecord) => {
     // 应用基础配置
     const baseInfo = record.baseInfo as { grade: string; difficulty: string; theme: string; knowledgePoints: string }
     setConfig((prev) => ({
@@ -378,7 +378,7 @@ export default function HomePage() {
    * 预览历史试卷
    * @param record 历史记录
    */
-  const handlePreviewHistoryTest = (record: Record<string, unknown>) => {
+  const handlePreviewHistoryTest = (record: HistoryRecord) => {
     console.log('预览历史试卷 - 原始记录数据:', record)
     
     // 验证历史记录数据的完整性
@@ -491,11 +491,11 @@ export default function HomePage() {
           
           // 生成完整的HTML内容
           const safeTitle = (currentTest.title || '英语试卷').replace(/["'<>&]/g, (char) => {
-            const entities = { '"': '&quot;', "'": '&#39;', '<': '&lt;', '>': '&gt;', '&': '&amp;' }
+            const entities: Record<string, string> = { '"': '&quot;', "'": '&#39;', '<': '&lt;', '>': '&gt;', '&': '&amp;' }
             return entities[char] || char
           })
           const safeSubtitle = (currentTest.subtitle || '').replace(/["'<>&]/g, (char) => {
-            const entities = { '"': '&quot;', "'": '&#39;', '<': '&lt;', '>': '&gt;', '&': '&amp;' }
+            const entities: Record<string, string> = { '"': '&quot;', "'": '&#39;', '<': '&lt;', '>': '&gt;', '&': '&amp;' }
             return entities[char] || char
           })
           
@@ -567,14 +567,14 @@ export default function HomePage() {
       ${generateScenarioInfoHTML(section)}
       ${sectionQuestions.map((q, qIndex) => {
         const questionText = (q.question || '').replace(/["'<>&]/g, (char) => {
-          const entities = { '"': '&quot;', "'": '&#39;', '<': '&lt;', '>': '&gt;', '&': '&amp;' }
+          const entities: Record<string, string> = { '"': '&quot;', "'": '&#39;', '<': '&lt;', '>': '&gt;', '&': '&amp;' }
           return entities[char] || char
         })
         return `<div class="question">
           <p style="margin-bottom: 10px;"><strong>${qIndex + 1}. ${questionText}</strong> <span style="color: #007bff; font-size: 12px;">(${q.points || 0}分)</span></p>
           ${q.options ? `<div class="options">${q.options.map((opt, optIndex) => {
             const safeOpt = (opt || '').replace(/["'<>&]/g, (char) => {
-              const entities = { '"': '&quot;', "'": '&#39;', '<': '&lt;', '>': '&gt;', '&': '&amp;' }
+              const entities: Record<string, string> = { '"': '&quot;', "'": '&#39;', '<': '&lt;', '>': '&gt;', '&': '&amp;' }
               return entities[char] || char
             })
             return `<div class="option"><strong>${String.fromCharCode(65 + optIndex)}.</strong> ${safeOpt}</div>`
@@ -824,13 +824,13 @@ export default function HomePage() {
               <FileText className="w-4 h-4" />
               试卷预览
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2">
-              <BookOpen className="w-4 h-4" />
-              历史记录
-            </TabsTrigger>
             <TabsTrigger value="export" className="flex items-center gap-2">
               <Download className="w-4 h-4" />
               导出下载
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4" />
+              历史记录
             </TabsTrigger>
           </TabsList>
 

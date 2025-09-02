@@ -175,6 +175,7 @@ export class HistoryManager {
         this.performEmergencyCleanup(type)
         // 重试保存
         try {
+          const key = HistoryManager.STORAGE_KEYS[type]
           const compressed = this.compressData(records)
           localStorage.setItem(key, compressed)
         } catch (retryError) {
