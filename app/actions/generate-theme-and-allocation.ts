@@ -187,6 +187,8 @@ ${dynamicJsonExample}
 ## 重要约束条件
 **每个题型只能出现一次**：scenarios数组中，每个questionType只能有一个对应的场景对象，绝对不允许重复！
 **严格按照题型配置**：只为上述"题型配置"中列出的题型生成场景，其他题型一律不生成！
+场景标题（scenarioTitle）和场景描述（scenarioDescription）请使用中文，请勿使用英文！
+知识点（knowledgePoints）中英文结合！
 `
 
     // 记录完整的prompt输入内容

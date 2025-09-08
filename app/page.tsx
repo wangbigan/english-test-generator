@@ -896,7 +896,7 @@ export default function HomePage() {
                       placeholder="描述需要重点考核的知识点，如：现在进行时、一般过去时、词汇量等"
                       value={config.knowledgePoints}
                       onChange={(e) => handleConfigChange("knowledgePoints", e.target.value)}
-                      rows={3}
+                      rows={6}
                     />
                     <div className="mt-2">
                       <Label className="text-sm text-gray-600 flex items-center gap-2">
