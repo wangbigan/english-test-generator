@@ -17,20 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Info, RotateCcw, Save, FileText, Wand2 } from "lucide-react"
-
-interface PromptTemplate {
-  id: string
-  name: string
-  description: string
-  template: string
-  variables: string[]
-}
-
-interface PromptConfig {
-  selectedTemplate: string
-  customTemplate: string
-  variables: Record<string, string>
-}
+import type { PromptTemplate, PromptConfig } from "@/lib/types"
 
 interface PromptConfigDialogProps {
   open: boolean

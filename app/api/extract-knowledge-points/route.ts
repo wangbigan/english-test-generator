@@ -1,33 +1,20 @@
 import { generateText } from "ai"
-import { createOpenAI } from "@ai-sdk/openai"
-import { createDeepSeek } from "@ai-sdk/deepseek"
 import { type NextRequest, NextResponse } from "next/server"
+import { createLanguageModel } from "@/lib/ai-provider"
+import type { AIProviderConfig } from "@/lib/types"
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, config } = await request.json()
+    const { text, config } = (await request.json()) as { text: string; config: AIProviderConfig }
 
     if (!text || !config?.apiKey) {
       return NextResponse.json({ error: "缺少必要参数" }, { status: 400 })
     }
 
-    // 根据模型类型创建对应的provider实例
-    let provider
-    if (config.model.startsWith("deepseek")) {
-      provider = createDeepSeek({
-        apiKey: config.apiKey,
-        baseURL: config.baseUrl || "https://api.deepseek.com/v1",
-      })
-    } else {
-      // 对于Kimi、豆包、GPT等其他模型，都使用OpenAI兼容格式
-      provider = createOpenAI({
-        apiKey: config.apiKey,
-        baseURL: config.baseUrl || "https://api.openai.com/v1",
-      })
-    }
+    const model = createLanguageModel(config)
 
     const { text: knowledgePoints } = await generateText({
-      model: provider(config.model),
+      model,
       prompt: `
         请分析以下文档内容，提取出适合小学英语教学的重点知识点。
 
@@ -52,7 +39,7 @@ export async function POST(request: NextRequest) {
 
         请直接输出整理后的知识点内容，不需要额外的格式标记。
       `,
-      temperature: 0.1, // 降低温度，让模型更严格地执行指令
+      temperature: 0.1,
     })
 
     return NextResponse.json({ knowledgePoints })

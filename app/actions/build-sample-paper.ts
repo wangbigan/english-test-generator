@@ -1,21 +1,7 @@
-interface TestConfig {
-  grade: string
-  difficulty: string
-  theme: string
-  knowledgePoints: string
-  totalScore: number
-  questionTypes: {
-    multipleChoice: { count: number; score: number }
-    fillInBlank: { count: number; score: number }
-    reading: { count: number; score: number }
-    writing: { count: number; score: number }
-    listening: { count: number; score: number }
-    trueFalse: { count: number; score: number }
-  }
-}
+import type { TestConfig, TestPaperData } from "@/lib/types"
 
-export function buildSamplePaper(config: TestConfig) {
-  const gradeNames = {
+export function buildSamplePaper(config: TestConfig): TestPaperData {
+  const gradeNames: Record<string, string> = {
     "1": "一年级",
     "2": "二年级",
     "3": "三年级",
@@ -24,25 +10,24 @@ export function buildSamplePaper(config: TestConfig) {
     "6": "六年级",
   }
 
-  const difficultyNames = {
+  const difficultyNames: Record<string, string> = {
     low: "基础",
     medium: "中等",
     high: "提高",
   }
 
-  const gradeName = gradeNames[config.grade as keyof typeof gradeNames] || "小学"
-  const difficultyName = difficultyNames[config.difficulty as keyof typeof difficultyNames] || "标准"
+  const gradeName = gradeNames[config.grade] || "小学"
+  const difficultyName = difficultyNames[config.difficulty] || "标准"
 
-  // 按照指定顺序生成题目：听力题、选择题、填空题、阅读理解、写作题
-  const sections = []
-  const answerKey = []
+  const sections: TestPaperData["sections"] = []
+  const answerKey: TestPaperData["answerKey"] = []
   let questionId = 1
 
   // 听力材料
   const listeningMaterial = `
-Hello everyone! My name is Lucy. I am eight years old. I live in Beijing with my family. 
-I have a mother, a father, and a little brother. My brother is five years old. 
-I like to play with my toys and read books. My favorite subject is English. 
+Hello everyone! My name is Lucy. I am eight years old. I live in Beijing with my family.
+I have a mother, a father, and a little brother. My brother is five years old.
+I like to play with my toys and read books. My favorite subject is English.
 I also like to draw pictures and sing songs. On weekends, I often go to the park with my family.
 We have a lot of fun together!
   `.trim()

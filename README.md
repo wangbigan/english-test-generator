@@ -5,18 +5,19 @@
 ## 🌟 核心特性
 
 ### 📝 智能试卷生成
-- **AI驱动**: 基于OpenAI GPT-4o、DeepSeek等大模型生成高质量试卷
-- **多题型支持**: 听力题、选择题、填空题、阅读理解、写作题
+- **AI驱动**: 支持 DeepSeek、Kimi、智谱 GLM、MiniMax、硅基流动、OpenAI 等主流大模型，智能生成高质量试卷
+- **多题型支持**: 听力题、选择题、填空题、判断题、阅读理解、写作题
 - **个性化配置**: 支持年级、难度、主题、知识点自定义
 - **智能评分**: 自动计算总分，支持灵活的分值配置
 
 ### 📄 文档解析功能
 - **Word文档**: 
-  - DOCX - mammoth.js专业解析（完全支持）
+  - DOCX - mammoth.js 专业解析（完全支持）
   - DOC - mammoth.js + 智能备用解析
 - **PowerPoint文档**:
-  - PPTX - JSZip + XML结构化解析
+  - PPTX - JSZip + XML 结构化解析
   - PPT - JSZip + 启发式二进制解析
+- **PDF文档**: pdf-parse 文本提取
 - **智能知识点提取**: 自动从文档中提取教学重点
 
 ### 🎯 用户体验
@@ -62,24 +63,29 @@ yarn dev
 
 ## ⚙️ 配置说明
 
-### OpenAI API 配置
+### AI 模型配置
 
-首次使用需要配置AI服务：
+首次使用需要配置 AI 服务：
 
-1. 点击页面顶部的"OpenAI 配置"按钮
-2. 填入以下信息：
-   - **API Key**: 从[OpenAI官网](https://platform.openai.com/api-keys)或[deepseek官网](https://api-docs.deepseek.com/zh-cn/)获取
-   - **Base URL**: 默认 `https://api.openai.com/v1`
-   - **模型**: 推荐 `gpt-4o` 或 `deepseek-chat`
+1. 点击页面顶部的"AI 模型配置"按钮
+2. 选择厂商 / 平台，填入以下信息：
+   - **厂商 / 平台**: DeepSeek、Kimi、智谱 GLM、MiniMax、硅基流动、OpenAI
+   - **模型**: 各厂商推荐模型已预置，按需要选择
+   - **API Key**: 点击对话框中的申请链接前往对应平台获取
+   - **Base URL**: 切换厂商时自动填充，一般无需手动修改
 
-### 支持的AI模型
+> API Key 按厂商加密后保存在本地浏览器（AES-GCM），不会上传到服务器；不同厂商的 key 互不混用。
 
-| 模型 | 提供商 | 推荐用途 |
-|------|--------|----------|
-| gpt-4o | OpenAI | 最佳试卷生成效果 |
-| gpt-4o-mini | OpenAI | 快速生成，成本较低 |
-| deepseek-chat | DeepSeek | 中文优化，性价比高 |
-| deepseek-reasoner | DeepSeek | 复杂推理题目 |
+### 支持的 AI 模型
+
+| 厂商 / 平台 | 推荐模型 | 模型列表 |
+|-------------|----------|----------|
+| DeepSeek | deepseek-v4-flash | v4-flash、v4-pro、deepseek-chat、deepseek-reasoner |
+| Kimi (Moonshot) | kimi-k2.6 | k2.6、k2.5、kimi-latest、moonshot-v1-128k、moonshot-v1-32k |
+| 智谱 GLM | glm-4.6 | glm-5.1、glm-5、glm-4.6、glm-4.5-air、glm-4-flash |
+| MiniMax | MiniMax-M2.5 | M2.5、M1、Text-01、abab6.5s-chat |
+| 硅基流动 (SiliconFlow) | Qwen/Qwen3.6-35B-A3B | Qwen3.6-35B-A3B、Qwen3.5-397B-A17B、DeepSeek-V3.1-Terminus、DeepSeek-R1、Qwen3.6-27B、Qwen3-8B |
+| OpenAI | gpt-5.4-mini | gpt-5.5、gpt-5.4-mini、gpt-5.4-nano、gpt-4.1、gpt-4o、gpt-4o-mini |
 
 ## 📚 使用指南
 
@@ -104,11 +110,12 @@ yarn dev
 #### 支持的文件格式
 - **Word文档**: `.docx`, `.doc`
 - **PowerPoint**: `.pptx`, `.ppt`
+- **PDF文档**: `.pdf`
 - **文本文件**: `.txt`
 
 #### 使用步骤
 1. 在"重点知识点"区域点击"上传文档"
-2. 选择教学文档（最大100MB）
+2. 选择教学文档（最大 4MB）
 3. 系统自动解析并提取文本
 4. 点击"提取知识点"生成教学重点
 5. AI自动整理为适合出题的知识点
@@ -177,7 +184,12 @@ english-test-generator/
 │   ├── layout.tsx                     # 根布局
 │   └── page.tsx                       # 主页面（试卷生成、导出、Prompt输入输出等）
 ├── components/ui/                     # UI组件库（Button、Dialog等）
-├── lib/                               # 工具函数
+├── lib/
+│   ├── ai-providers.ts                # 大模型厂商/平台注册表（模型列表、BaseURL 等）
+│   ├── ai-provider.ts                 # AI SDK 模型实例创建（OpenAI/DeepSeek 兼容路由）
+│   ├── ai-config-storage.ts           # API Key 本地加密存储（AES-GCM + PBKDF2）
+│   ├── types.ts                       # 全局共享类型定义
+│   └── test-schema.ts                 # 试卷数据结构 Zod Schema 校验
 ├── public/                            # 静态资源
 └── README.md                          # 项目文档
 ```
@@ -204,11 +216,9 @@ npm start
 
 ### 自定义配置
 
-#### 添加新的AI模型
-在 `app/components/openai-config-dialog.tsx` 中添加：
-```tsx
-<SelectItem value="new-model">新模型名称</SelectItem>
-```
+#### 添加新的 AI 模型或厂商
+在 `lib/ai-providers.ts` 中的 `PROVIDERS` 数组里添加或修改厂商/模型信息。
+对话框和路由逻辑会自动读取注册表，无需修改 UI 代码。
 
 #### 修改题型配置
 在 `app/page.tsx` 中调整 `questionTypes` 配置：
@@ -257,7 +267,7 @@ questionTypes: {
 
 - **乱码检测**: 智能识别和处理乱码内容
 - **文本清理**: 自动移除格式标记和无效字符
-- **长度限制**: 10K字符上限保护
+- **长度限制**: 30K 字符上限保护
 - **编码支持**: UTF-8、UTF-16LE、ASCII等多编码
 
 ## 🎨 界面功能
@@ -294,7 +304,7 @@ questionTypes: {
 **问题**: "文档解析失败"
 **解决**:
 - 检查文件格式是否支持
-- 确认文件大小不超过100MB
+- 确认文件大小不超过 4MB
 - 尝试转换为DOCX/PPTX格式
 
 #### 3. 试卷生成错误

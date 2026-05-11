@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -14,71 +14,96 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, Info } from "lucide-react"
-
-interface OpenAIConfig {
-  apiKey: string
-  baseUrl: string
-  model: string
-}
+import { ExternalLink, Eye, EyeOff, Info } from "lucide-react"
+import type { AIProviderConfig } from "@/lib/types"
+import {
+  DEFAULT_PROVIDER,
+  PROVIDERS,
+  findProviderByBaseUrl,
+  type ProviderInfo,
+} from "@/lib/ai-providers"
+import { loadDecryptedKeysMap, saveProviderAIConfig } from "@/lib/ai-config-storage"
 
 interface OpenAIConfigDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  config: OpenAIConfig | null
-  onConfigSave: (config: OpenAIConfig) => void
+  config: AIProviderConfig | null
+  onConfigSave: (config: AIProviderConfig) => void
 }
 
 export function OpenAIConfigDialog({ open, onOpenChange, config, onConfigSave }: OpenAIConfigDialogProps) {
-  const [formData, setFormData] = useState<OpenAIConfig>({
-    apiKey: config?.apiKey || "",
-    baseUrl: config?.baseUrl || "https://api.deepseek.com/v1",
-    model: config?.model || "deepseek-chat",
-  })
-  const [showApiKey, setShowApiKey] = useState(false)
-  const [isValidating, setIsValidating] = useState(false)
+  const initialProvider = findProviderByBaseUrl(config?.baseUrl)
 
+  const [providerId, setProviderId] = useState<string>(initialProvider.id)
+  const [formData, setFormData] = useState<AIProviderConfig>({
+    apiKey: config?.apiKey || "",
+    baseUrl: config?.baseUrl || initialProvider.baseUrl,
+    model: config?.model || initialProvider.models[0].value,
+  })
+  // 各厂商已保存的明文 key 缓存（dialog 打开时一次性预解密）
+  // 不会落盘 —— 仅在 dialog 内部用于「切换厂商时回填该厂商已存的 key」
+  const [decryptedKeys, setDecryptedKeys] = useState<Record<string, string>>({})
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const provider = useMemo<ProviderInfo>(
+    () => PROVIDERS.find((p) => p.id === providerId) ?? DEFAULT_PROVIDER,
+    [providerId],
+  )
+
+  // 父组件传入的 config 变化时同步本地表单（首次加载、保存后回流）
   useEffect(() => {
-    if (config) {
-      setFormData({
-        apiKey: config.apiKey || "",
-        baseUrl: config.baseUrl || "https://api.deepseek.com/v1",
-        model: config.model || "deepseek-chat",
-      })
-    }
+    if (!config) return
+    const matched = findProviderByBaseUrl(config.baseUrl)
+    setProviderId(matched.id)
+    setFormData({
+      apiKey: config.apiKey || "",
+      baseUrl: config.baseUrl || matched.baseUrl,
+      model: config.model || matched.models[0].value,
+    })
   }, [config])
 
-  // 根据模型自动设置Base URL
-  const getBaseUrlForModel = (model: string): string => {
-    if (model.startsWith('deepseek')) {
-      return 'https://api.deepseek.com/v1'
-    } else if (model.startsWith('moonshot') || model.startsWith('kimi')) {
-      return 'https://api.moonshot.cn/v1'
-    } else if (model.startsWith('Doubao')) {
-      return 'https://ark.cn-beijing.volces.com/api/v3/chat/completions'
-    } else if (model.startsWith('gpt')) {
-      return 'https://api.openai.com/v1'
+  // dialog 打开时拉取所有厂商已保存的解密 key
+  // 使用 hasLoadedRef 避免每次 open 切换都触发，但 open 关闭再打开时重新拉取以反映最新状态
+  const lastOpenRef = useRef(false)
+  useEffect(() => {
+    if (!open) {
+      lastOpenRef.current = false
+      return
     }
-    return formData.baseUrl
+    if (lastOpenRef.current) return
+    lastOpenRef.current = true
+    loadDecryptedKeysMap()
+      .then(setDecryptedKeys)
+      .catch((err) => {
+        console.error("[OpenAIConfigDialog] 解密已保存的 key 失败:", err)
+        setDecryptedKeys({})
+      })
+  }, [open])
+
+  const handleProviderChange = (nextProviderId: string) => {
+    const next = PROVIDERS.find((p) => p.id === nextProviderId) ?? DEFAULT_PROVIDER
+    setProviderId(next.id)
+    // 切换厂商时回填该厂商已保存的 key；没保存过则置空（互不混用）
+    setFormData({
+      apiKey: decryptedKeys[next.id] ?? "",
+      baseUrl: next.baseUrl,
+      model: next.models[0].value,
+    })
   }
 
   const handleModelChange = (model: string) => {
-    const newBaseUrl = getBaseUrlForModel(model)
-    setFormData({ 
-      ...formData, 
-      model, 
-      baseUrl: newBaseUrl 
-    })
+    setFormData((prev) => ({ ...prev, model }))
   }
 
   const handleSave = async () => {
     if (!formData.apiKey.trim()) {
-      alert("请输入API Key")
+      alert("请输入 API Key")
       return
     }
 
     if (!formData.baseUrl.trim()) {
-      alert("请输入Base URL")
+      alert("请输入 Base URL")
       return
     }
 
@@ -87,48 +112,81 @@ export function OpenAIConfigDialog({ open, onOpenChange, config, onConfigSave }:
       return
     }
 
-    setIsValidating(true)
-
-    // 这里可以添加API连接测试
+    setIsSaving(true)
     try {
-      // 简单的格式验证
-      if (!formData.apiKey.startsWith("sk-") && !formData.apiKey.includes("key-")) {
-        console.warn("API Key格式可能不正确")
-      }
-
+      // 加密写入 localStorage（仅更新当前厂商的槽位，不动其它厂商）
+      await saveProviderAIConfig(providerId, formData)
+      // 同步内部解密缓存，避免立刻切换厂商时还要重新解密
+      setDecryptedKeys((prev) => ({ ...prev, [providerId]: formData.apiKey }))
       onConfigSave(formData)
     } catch (error) {
-      console.error("配置验证失败:", error)
-      alert("配置验证失败，请检查参数")
+      console.error("[OpenAIConfigDialog] 保存配置失败:", error)
+      alert("配置保存失败，请重试")
     } finally {
-      setIsValidating(false)
+      setIsSaving(false)
     }
   }
 
   const handleReset = () => {
+    setProviderId(DEFAULT_PROVIDER.id)
     setFormData({
       apiKey: "",
-      baseUrl: "https://api.deepseek.com/v1",
-      model: "deepseek-chat",
+      baseUrl: DEFAULT_PROVIDER.baseUrl,
+      model: DEFAULT_PROVIDER.models[0].value,
     })
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Info className="w-5 h-5" />
-            OpenAI 配置
+            AI 模型配置
           </DialogTitle>
-          <DialogDescription>配置您的OpenAI API参数以启用AI试卷生成功能</DialogDescription>
+          <DialogDescription>选择大模型厂商或聚合平台，配置 API 参数以启用试卷生成功能</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <Alert>
             <Info className="h-4 w-4" />
-            <AlertDescription>您的API密钥将安全地存储在本地浏览器中，不会上传到服务器。</AlertDescription>
+            <AlertDescription>
+              API 密钥按厂商加密后保存在本地浏览器（AES-GCM），不会上传到服务器；不同厂商的 key 互不混用。
+            </AlertDescription>
           </Alert>
+
+          <div className="space-y-2">
+            <Label htmlFor="provider">厂商 / 平台 *</Label>
+            <Select value={providerId} onValueChange={handleProviderChange}>
+              <SelectTrigger id="provider">
+                <SelectValue placeholder="选择厂商或平台" />
+              </SelectTrigger>
+              <SelectContent>
+                {PROVIDERS.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500">{provider.description}</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="model">模型 *</Label>
+            <Select value={formData.model} onValueChange={handleModelChange}>
+              <SelectTrigger id="model">
+                <SelectValue placeholder="选择模型" />
+              </SelectTrigger>
+              <SelectContent>
+                {provider.models.map((m) => (
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="apiKey">API Key *</Label>
@@ -136,10 +194,11 @@ export function OpenAIConfigDialog({ open, onOpenChange, config, onConfigSave }:
               <Input
                 id="apiKey"
                 type={showApiKey ? "text" : "password"}
-                placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                placeholder={provider.apiKeyPlaceholder}
                 value={formData.apiKey}
                 onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
                 className="pr-10"
+                autoComplete="off"
               />
               <Button
                 type="button"
@@ -152,65 +211,42 @@ export function OpenAIConfigDialog({ open, onOpenChange, config, onConfigSave }:
               </Button>
             </div>
             <p className="text-xs text-gray-500">
-              从{" "}
+              没有 Key？前往{" "}
               <a
-                href="https://platform.openai.com/api-keys"
+                href={provider.apiKeyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-500 hover:underline"
+                className="inline-flex items-center gap-0.5 text-blue-500 hover:underline"
               >
-                OpenAI官网
+                {provider.apiKeyName}
+                <ExternalLink className="h-3 w-3" />
               </a>{" "}
-              获取您的API Key
+              申请。
             </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="model">模型</Label>
-            <Select value={formData.model} onValueChange={handleModelChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="选择模型" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="deepseek-chat">DeepSeek-Chat (推荐)</SelectItem>
-                <SelectItem value="deepseek-reasoner">DeepSeek-Reasoner</SelectItem>
-                <SelectItem value="moonshot-v1-128k">Kimi-Moonshot-v1-128k</SelectItem>
-                {/* <SelectItem value="kimi-k2-0711-preview">Kimi-K2-0711-Preview</SelectItem> */}
-                {/* <SelectItem value="Doubao-Seed-1.6">豆包-Seed-1.6</SelectItem>
-                <SelectItem value="Doubao-Seed-1.6-thinking">豆包-Seed-1.6-thinking</SelectItem>
-                <SelectItem value="Doubao-1.5-pro-32k">豆包-1.5-pro-32k</SelectItem> */}
-                <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-                <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                <SelectItem value="gpt-4">GPT-4</SelectItem>
-                <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-gray-500">选择模型会自动设置对应的Base URL</p>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="baseUrl">Base URL</Label>
             <Input
               id="baseUrl"
-              placeholder="https://api.openai.com/v1"
+              placeholder={provider.baseUrl}
               value={formData.baseUrl}
               onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
             />
-            <p className="text-xs text-gray-500">会根据选择的模型自动填充，也可手动修改</p>
+            <p className="text-xs text-gray-500">切换厂商时会自动填充，一般无需手动修改</p>
           </div>
         </div>
 
         <DialogFooter className="flex justify-between">
-          <Button variant="outline" onClick={handleReset}>
+          <Button variant="outline" onClick={handleReset} disabled={isSaving}>
             重置
           </Button>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
               取消
             </Button>
-            <Button onClick={handleSave} disabled={isValidating}>
-              {isValidating ? "验证中..." : "保存配置"}
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? "保存中..." : "保存配置"}
             </Button>
           </div>
         </DialogFooter>

@@ -18,53 +18,9 @@ import { PromptConfigDialog } from "./components/prompt-config-dialog"
 import { FileUpload } from "./components/file-upload"
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
 import { DEFAULT_TEMPLATES } from "./components/prompt-config-dialog"
-
-interface TestConfig {
-  grade: string
-  difficulty: string
-  theme: string
-  knowledgePoints: string
-  totalScore: number
-  questionTypes: {
-    multipleChoice: { count: number; score: number }
-    fillInBlank: { count: number; score: number }
-    reading: { count: number; score: number }
-    writing: { count: number; score: number }
-    listening: { count: number; score: number }
-    trueFalse: { count: number, score: number }  // 判断题
-  }
-}
-
-interface GeneratedTest {
-  title: string
-  subtitle: string
-  instructions: string
-  sections: Array<{
-    type: string
-    title: string
-    questions: Array<{
-      id: number
-      question: string
-      options?: string[]
-      answer?: string
-      points: number
-      explanation?: string
-    }>
-  }>
-  totalScore: number
-  listeningMaterial?: string
-  answerKey: Array<{
-    id: number
-    answer: string
-    explanation: string
-  }>
-}
-
-interface PromptConfig {
-  selectedTemplate: string
-  customTemplate: string
-  variables: Record<string, string>
-}
+import type { TestConfig, TestPaperData, PromptConfig, AIProviderConfig } from "@/lib/types"
+import { loadCurrentAIConfig } from "@/lib/ai-config-storage"
+import { findProviderByBaseUrl } from "@/lib/ai-providers"
 
 export default function HomePage() {
   const [config, setConfig] = useState<TestConfig>({
@@ -85,11 +41,7 @@ export default function HomePage() {
 
   const [showConfigDialog, setShowConfigDialog] = useState(false)
   const [showPromptDialog, setShowPromptDialog] = useState(false)
-  const [openaiConfig, setOpenaiConfig] = useState<{
-    apiKey: string
-    baseUrl: string
-    model: string
-  } | null>(null)
+  const [openaiConfig, setOpenaiConfig] = useState<AIProviderConfig | null>(null)
   const [promptConfig, setPromptConfig] = useState<PromptConfig | null>({
     selectedTemplate: "standard",
     customTemplate: "",
@@ -98,14 +50,17 @@ export default function HomePage() {
 
   // 检查本地存储的配置
   useEffect(() => {
-    const savedConfig = localStorage.getItem("openai-config")
-    if (savedConfig) {
+    let cancelled = false
+    ;(async () => {
       try {
-        setOpenaiConfig(JSON.parse(savedConfig))
+        const loaded = await loadCurrentAIConfig((baseUrl) => findProviderByBaseUrl(baseUrl).id)
+        if (!cancelled && loaded) {
+          setOpenaiConfig(loaded)
+        }
       } catch (error) {
-        console.error("Failed to parse saved config:", error)
+        console.error("Failed to load AI config:", error)
       }
-    }
+    })()
 
     const savedPromptConfig = localStorage.getItem("prompt-config")
     if (savedPromptConfig) {
@@ -115,9 +70,13 @@ export default function HomePage() {
         console.error("Failed to parse saved prompt config:", error)
       }
     }
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  const [generatedTest, setGeneratedTest] = useState<GeneratedTest | null>(null)
+  const [generatedTest, setGeneratedTest] = useState<TestPaperData | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [activeTab, setActiveTab] = useState("config")
   const [promptText, setPromptText] = useState<string>("")
@@ -126,7 +85,7 @@ export default function HomePage() {
   const [showPromptPanel, setShowPromptPanel] = useState(false)
   const [generationError, setGenerationError] = useState<string | null>(null)
 
-  const handleConfigChange = (key: string, value: any) => {
+  const handleConfigChange = (key: keyof TestConfig, value: TestConfig[keyof TestConfig]) => {
     setConfig((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -562,7 +521,7 @@ export default function HomePage() {
               className="flex items-center gap-2"
             >
               <Settings2 className="w-4 h-4" />
-              OpenAI 配置
+              AI 模型配置
               {openaiConfig?.apiKey && (
                 <Badge variant="secondary" className="ml-1">
                   已配置
@@ -888,8 +847,8 @@ export default function HomePage() {
         onOpenChange={setShowConfigDialog}
         config={openaiConfig}
         onConfigSave={(newConfig) => {
+          // 加密持久化由 dialog 内部完成（saveProviderAIConfig），此处仅同步内存状态
           setOpenaiConfig(newConfig)
-          localStorage.setItem("openai-config", JSON.stringify(newConfig))
           setShowConfigDialog(false)
         }}
       />

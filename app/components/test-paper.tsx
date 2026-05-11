@@ -1,35 +1,12 @@
+import type React from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import type { TestPaperData } from "@/lib/types"
 
 interface TestPaperProps {
-  test: {
-    title: string
-    subtitle: string
-    instructions: string
-    sections: Array<{
-      type: string
-      title: string
-      questions: Array<{
-        id: number
-        question: string
-        options?: string[]
-        answer?: string
-        points: number
-        explanation?: string
-      }>
-      listeningMaterial?: string
-      readingMaterial?: string
-    }>
-    totalScore: number
-    listeningMaterial?: string
-    answerKey: Array<{
-      id: number
-      answer: string
-      explanation: string
-    }>
-  }
+  test: TestPaperData
 }
 
 export function TestPaper({ test }: TestPaperProps) {
@@ -206,8 +183,8 @@ export function TestPaper({ test }: TestPaperProps) {
           </CardHeader>
           <CardContent className="space-y-6">
             {(() => {
-              let questionNumber = 1;
-              const answerItems: any[] = [];
+              let questionNumber = 1
+              const answerItems: React.ReactNode[] = []
               test.sections.forEach((section) => {
                 section.questions?.forEach((question) => {
                   answerItems.push(
@@ -219,12 +196,12 @@ export function TestPaper({ test }: TestPaperProps) {
                         </Badge>
                       </div>
                       <p className="text-gray-700 text-sm leading-relaxed">{question.explanation ?? "-"}</p>
-                    </div>
-                  );
-                  questionNumber++;
-                });
-              });
-              return answerItems;
+                    </div>,
+                  )
+                  questionNumber++
+                })
+              })
+              return answerItems
             })()}
           </CardContent>
         </Card>

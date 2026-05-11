@@ -8,9 +8,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Upload, FileText, Loader2, X, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
+import type { AIProviderConfig } from "@/lib/types"
+
 interface FileUploadProps {
   onKnowledgePointsExtracted: (points: string) => void
-  openaiConfig: { apiKey: string; baseUrl: string; model: string } | null
+  openaiConfig: AIProviderConfig | null
 }
 
 export function FileUpload({ onKnowledgePointsExtracted, openaiConfig }: FileUploadProps) {
